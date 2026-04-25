@@ -1,0 +1,627 @@
+{
+  "mapId": -2147483574,
+  "mapAvailabilities": [
+    7
+  ],
+  "resourceAvailabilities": {
+    "-2147481068": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481067": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481057": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481056": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481054": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481051": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481049": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481048": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481046": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481045": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481044": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481031": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481026": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481023": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481022": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481016": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481007": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480997": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480996": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480990": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480987": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480981": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480977": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480976": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480974": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480971": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480967": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480964": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480960": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480957": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480950": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480943": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480942": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480938": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480930": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480927": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480902": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480899": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480898": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480894": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480875": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480864": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480848": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480845": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480836": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480835": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480834": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480833": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480830": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480828": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480827": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480820": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480819": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480818": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480817": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480816": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480812": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480810": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480809": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480805": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480802": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480798": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480795": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480790": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480787": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480784": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480778": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480775": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480772": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480768": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480767": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480763": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480762": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480760": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480757": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480755": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480749": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480748": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480747": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480741": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480739": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480737": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480733": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480732": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480722": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480721": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480717": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480710": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480705": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480702": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480692": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480685": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480679": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480675": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480663": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480658": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480651": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480648": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480647": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480644": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480642": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480635": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147480633": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ]
+  },
+  "mapLinkAvailabilities": {}
+}
