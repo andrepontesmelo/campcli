@@ -5,8 +5,35 @@ from datetime import date
 
 import typer
 
+import re
+
 from . import format as fmt
 from . import watches as watch_svc
+from .drive_times import load_cache as load_drive_cache
+
+
+_DURATION_RE = re.compile(
+    r"^\s*(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+(?:\.\d+)?)\s*m)?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _parse_hours(text: str) -> float:
+    """Parse '2h30m', '90m', '1.5h', '3h', '45' (bare number = hours)."""
+    s = text.strip()
+    if not s:
+        raise ValueError("empty duration")
+    # Bare number → hours.
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    m = _DURATION_RE.match(s)
+    if not m or not (m.group(1) or m.group(2)):
+        raise ValueError(f"can't parse duration: {text!r} (try '2h30m', '90m', '1.5h')")
+    h = float(m.group(1) or 0)
+    minutes = float(m.group(2) or 0)
+    return h + minutes / 60.0
 from .api import ApiError, BCParksClient, RateLimited
 from .availability import check_park
 from .booking import quote_url
@@ -39,8 +66,14 @@ def _exit_for(err: Exception) -> typer.Exit:
 # ----- parks -----------------------------------------------------------------
 
 @parks_app.command("list")
-def parks_list(search: str | None = typer.Option(None, "--search", "-s")) -> None:
-    """List BC Parks campgrounds. Optionally filter by name substring."""
+def parks_list(
+    search: str | None = typer.Option(None, "--search", "-s"),
+    distance: str | None = typer.Option(
+        None, "--distance", "-d",
+        help="Max drive time. Accepts '2h30m', '90m', '1.5h', or a bare number (hours).",
+    ),
+) -> None:
+    """List BC Parks campgrounds, sorted by drive time. Filter by name or max distance."""
     try:
         with BCParksClient() as client:
             parks = get_parks(client)
@@ -49,6 +82,17 @@ def parks_list(search: str | None = typer.Option(None, "--search", "-s")) -> Non
     if search:
         q = search.lower()
         parks = [p for p in parks if q in p.name.lower()]
+    if distance:
+        try:
+            max_hours = _parse_hours(distance)
+        except ValueError as e:
+            typer.echo(f"error: {e}", err=True)
+            raise typer.Exit(code=1) from e
+        cache = load_drive_cache()
+        parks = [
+            p for p in parks
+            if (h := cache.get(p.park_id, {}).get("hours")) is not None and h <= max_hours
+        ]
     typer.echo(fmt.render_parks(parks))
 
 
