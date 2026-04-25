@@ -1,0 +1,668 @@
+[
+  {
+    "name": "Alice Lake Provincial Park",
+    "resource_location_id": -2147483647,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Allison Lake Provincial Park",
+    "resource_location_id": -2147483497,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Bamberton Provincial Park",
+    "resource_location_id": -2147483646,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Bear Creek Provincial Park",
+    "resource_location_id": -2147483645,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Beatton Provincial Park",
+    "resource_location_id": -2147483644,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Beaumont Provincial Park",
+    "resource_location_id": -2147483643,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Beaver Creek Provincial Park",
+    "resource_location_id": -2147483493,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Big Bar Lake Provincial Park",
+    "resource_location_id": -2147483641,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Birkenhead Lake Provincial Park",
+    "resource_location_id": -2147483640,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Blanket Creek Provincial Park",
+    "resource_location_id": -2147483639,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Bowron Lake Provincial Park",
+    "resource_location_id": -2147483638,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Bromley Rock Provincial Park",
+    "resource_location_id": -2147483636,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Carp Lake Provincial Park",
+    "resource_location_id": -2147483632,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Champion Lakes Provincial Park",
+    "resource_location_id": -2147483629,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Charlie Lake Provincial Park",
+    "resource_location_id": -2147483628,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Cowichan River Provincial Park",
+    "resource_location_id": -2147483625,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Crooked River Provincial Park",
+    "resource_location_id": -2147483624,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Cultus Lake Provincial Park",
+    "resource_location_id": -2147483623,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Dry Gulch Provincial Park",
+    "resource_location_id": -2147483619,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "E. C. Manning Provincial Park",
+    "resource_location_id": -2147483618,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Elk Falls Provincial Park",
+    "resource_location_id": -2147483617,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Ellison Provincial Park",
+    "resource_location_id": -2147483615,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Englishman River Falls Provincial Park",
+    "resource_location_id": -2147483614,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Fillongley Provincial Park",
+    "resource_location_id": -2147483613,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Fintry Provincial Park",
+    "resource_location_id": -2147483612,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "French Beach Provincial Park",
+    "resource_location_id": -2147483610,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Gladstone Provincial Park",
+    "resource_location_id": -2147483607,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Golden Ears Provincial Park",
+    "resource_location_id": -2147483606,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Goldstream Provincial Park",
+    "resource_location_id": -2147483605,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Gordon Bay Provincial Park",
+    "resource_location_id": -2147483604,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Green Lake Provincial Park",
+    "resource_location_id": -2147483603,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Gwillim Lake Provincial Park",
+    "resource_location_id": -2147483498,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Herald Provincial Park",
+    "resource_location_id": -2147483601,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Horsefly Lake Provincial Park",
+    "resource_location_id": -2147483600,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Inland Lake Provincial Park",
+    "resource_location_id": -2147483599,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Jimsmith Lake Provincial Park",
+    "resource_location_id": -2147483503,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Juan de Fuca Provincial Park",
+    "resource_location_id": -2147483596,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Juniper Beach Provincial Park",
+    "resource_location_id": -2147483595,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Kekuli Bay Provincial Park",
+    "resource_location_id": -2147483594,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Kentucky-Alleyne Provincial Park",
+    "resource_location_id": -2147483593,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Kettle River Recreation Area",
+    "resource_location_id": -2147483592,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Kikomun Creek Provincial Park",
+    "resource_location_id": -2147483591,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Kleanza Creek Provincial Park",
+    "resource_location_id": -2147483590,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Kokanee Creek Provincial Park",
+    "resource_location_id": -2147483589,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Kootenay Lake Provincial Park",
+    "resource_location_id": -2147483587,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Lac La Hache Provincial Park",
+    "resource_location_id": -2147483586,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Lac Le Jeune Provincial Park",
+    "resource_location_id": -2147483585,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Lakelse Lake Provincial Park",
+    "resource_location_id": -2147483584,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Liard River Hot Springs Provincial Park",
+    "resource_location_id": -2147483583,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Little Qualicum Falls Provincial Park",
+    "resource_location_id": -2147483582,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Lockhart Beach Provincial Park",
+    "resource_location_id": -2147483502,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Loveland Bay Provincial Park",
+    "resource_location_id": -2147483581,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Mabel Lake Provincial Park",
+    "resource_location_id": -2147483580,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Martha Creek Provincial Park",
+    "resource_location_id": -2147483578,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "McDonald Creek Provincial Park",
+    "resource_location_id": -2147483577,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Meziadin Lake Provincial Park",
+    "resource_location_id": -2147483576,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Miracle Beach Provincial Park",
+    "resource_location_id": -2147483575,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Moberly Lake Provincial Park",
+    "resource_location_id": -2147483574,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Monck Provincial Park",
+    "resource_location_id": -2147483572,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Montague Harbour Marine Park",
+    "resource_location_id": -2147483571,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Morton Lake Provincial Park",
+    "resource_location_id": -2147483570,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Mount Fernie Provincial Park",
+    "resource_location_id": -2147483568,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Mount Robson Provincial Park",
+    "resource_location_id": -2147483567,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Moyie Lake Provincial Park",
+    "resource_location_id": -2147483565,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Muncho Lake Provincial Park",
+    "resource_location_id": -2147483499,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Nairn Falls Provincial Park",
+    "resource_location_id": -2147483564,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Norbury Lake Provincial Park",
+    "resource_location_id": -2147483504,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "North Thompson River Provincial Park",
+    "resource_location_id": -2147483562,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Okanagan Lake North Provincial Park",
+    "resource_location_id": -2147483561,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Okanagan Lake South Provincial Park",
+    "resource_location_id": -2147483560,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Otter Lake Provincial Park",
+    "resource_location_id": -2147483559,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Paarens Beach Provincial Park",
+    "resource_location_id": -2147483558,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Paul Lake Provincial Park",
+    "resource_location_id": -2147483557,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Porpoise Bay Provincial Park",
+    "resource_location_id": -2147483551,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Porteau Cove Provincial Park",
+    "resource_location_id": -2147483550,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Premier Lake Provincial Park",
+    "resource_location_id": -2147483549,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Prudhomme Lake Provincial Park",
+    "resource_location_id": -2147483548,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Purden Lake Provincial Park",
+    "resource_location_id": -2147483547,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Rathtrevor Beach Provincial Park",
+    "resource_location_id": -2147483545,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Red Bluff Provincial Park",
+    "resource_location_id": -2147483544,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Rolley Lake Provincial Park",
+    "resource_location_id": -2147483543,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Rosebery Provincial Park",
+    "resource_location_id": -2147483542,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Ruckle Provincial Park",
+    "resource_location_id": -2147483541,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Saltery Bay Provincial Park",
+    "resource_location_id": -2147483540,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Sasquatch Provincial Park",
+    "resource_location_id": -2147483539,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Saysutshun (Newcastle Island Marine) Park",
+    "resource_location_id": -2147483563,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Shuswap Lake Provincial Park",
+    "resource_location_id": -2147483536,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Silver Lake Provincial Park",
+    "resource_location_id": -2147483535,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Skagit Valley Provincial Park",
+    "resource_location_id": -2147483534,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Smelt Bay Provincial Park",
+    "resource_location_id": -2147483533,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Sowchea Bay Provincial Park",
+    "resource_location_id": -2147483532,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Sproat Lake Provincial Park",
+    "resource_location_id": -2147483531,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Stamp River Provincial Park",
+    "resource_location_id": -2147483530,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Stemwinder Provincial Park",
+    "resource_location_id": -2147483528,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Strathcona Provincial Park",
+    "resource_location_id": -2147483527,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Summit Lake Provincial Park",
+    "resource_location_id": -2147483525,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Swan Lake Provincial Park",
+    "resource_location_id": -2147483524,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Sx\u0331\u00f3tsaqel / Chilliwack Lake Park",
+    "resource_location_id": -2147483627,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Syringa Provincial Park",
+    "resource_location_id": -2147483521,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Ten Mile Lake Provincial Park",
+    "resource_location_id": -2147483519,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Tribune Bay Provincial Park",
+    "resource_location_id": -2147483488,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Tweedsmuir Provincial Park \u2013 South",
+    "resource_location_id": -2147483516,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Tyhee Lake Provincial Park",
+    "resource_location_id": -2147483515,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "T\u0101 Ch'il\u0101 Park [a.k.a. Boya Lake Park]",
+    "resource_location_id": -2147483637,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Wasa Lake Provincial Park",
+    "resource_location_id": -2147483513,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Wells Gray Provincial Park - Clearwater Lake & Falls Creek",
+    "resource_location_id": -2147483492,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Wells Gray Provincial Park - Mahood Lake",
+    "resource_location_id": -2147483512,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Whiskers Point Provincial Park",
+    "resource_location_id": -2147483509,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "Yahk Provincial Park",
+    "resource_location_id": -2147483500,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "sx\u030c\u02b7\u0259x\u030c\u02b7nitk\u02b7 Provincial Park (Okanagan Falls)",
+    "resource_location_id": -2147483522,
+    "map_id": null,
+    "region": null
+  },
+  {
+    "name": "s\u1e81i\u1e81s Provincial Park (Haynes Point)",
+    "resource_location_id": -2147483523,
+    "map_id": null,
+    "region": null
+  }
+]

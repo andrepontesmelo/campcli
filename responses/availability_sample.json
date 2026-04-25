@@ -1,0 +1,42 @@
+{
+  "query": {
+    "park": "Golden Ears Provincial Park",
+    "resource_location_id": -2147483606,
+    "map_id": -2147483574,
+    "map_name": "Alouette South",
+    "start_date": "2026-07-04",
+    "end_date": "2026-07-06"
+  },
+  "response_shape": {
+    "resourceAvailabilities_count": 103,
+    "mapLinkAvailabilities_count": 0,
+    "available_sites": 0,
+    "unavailable_sites": 103
+  },
+  "availability_codes": {
+    "0": "Available",
+    "1": "Reserved/Unavailable",
+    "2": "Closed",
+    "3": "Not Reservable (walk-in)"
+  },
+  "sample_entries": {
+    "-2147481068": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481067": [
+      {
+        "availability": 7,
+        "remainingQuota": null
+      }
+    ],
+    "-2147481057": [
+      {
+        "availability": 1,
+        "remainingQuota": null
+      }
+    ]
+  }
+}
