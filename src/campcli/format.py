@@ -30,6 +30,15 @@ def render_parks(parks: list[Park]) -> str:
     drive_cache = load_drive_cache()
     if not drive_cache:
         return "\n".join(render_park(p) for p in parks)
+    # Sort closest first; parks without a drive time sink to the bottom.
+    parks = sorted(
+        parks,
+        key=lambda p: (
+            drive_cache.get(p.park_id, {}).get("hours") is None,
+            drive_cache.get(p.park_id, {}).get("hours") or 0.0,
+            p.name,
+        ),
+    )
     header = "drive  park  (drive time from Coquitlam, ferry routes counted as driving)"
     return header + "\n" + "\n".join(render_park(p, drive_cache) for p in parks)
 
