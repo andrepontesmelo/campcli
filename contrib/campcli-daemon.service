@@ -1,0 +1,14 @@
+[Unit]
+Description=campcli BC Parks availability daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/campcli/telegram.env
+ExecStart=%h/.local/bin/campcli daemon
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=default.target
