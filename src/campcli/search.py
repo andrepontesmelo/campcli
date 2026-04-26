@@ -52,6 +52,7 @@ def run(
     today: date | None = None,
     limit_parks: int | None = None,
     progress: Callable[[str], None] | None = None,
+    on_match: Callable[[WeekendMatch], None] | None = None,
 ) -> list[WeekendMatch]:
     today = today or date.today()
     windows = expand_windows(today, profile)
@@ -100,17 +101,22 @@ def run(
                 if nights == 2:
                     two_night_starts.add(start)
                 fee = fee_per_night(client, park.park_id, m.map_id, start)
-                matches.append(
-                    WeekendMatch(
-                        park_id=park.park_id,
-                        park_name=park.name,
-                        map_id=m.map_id,
-                        map_name=m.name,
-                        start_date=start,
-                        end_date=start + timedelta(days=nights),
-                        nights=nights,
-                        available_count=len(sites),
-                        fee_per_night=fee,
-                    )
+                match = WeekendMatch(
+                    park_id=park.park_id,
+                    park_name=park.name,
+                    map_id=m.map_id,
+                    map_name=m.name,
+                    start_date=start,
+                    end_date=start + timedelta(days=nights),
+                    nights=nights,
+                    available_count=len(sites),
+                    fee_per_night=fee,
                 )
+                matches.append(match)
+                if on_match:
+                    try:
+                        on_match(match)
+                    except Exception as e:
+                        if progress:
+                            progress(f"  ! on_match callback failed: {e}")
     return matches

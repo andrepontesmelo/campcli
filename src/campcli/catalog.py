@@ -80,3 +80,24 @@ def get_parks(client: BCParksClient, refresh: bool = False) -> list[Park]:
 
 def find_park(parks: list[Park], park_id: int) -> Park | None:
     return next((p for p in parks if p.park_id == park_id), None)
+
+
+def resolve_park(client: BCParksClient, query: str) -> Park:
+    """Resolve a free-text park name to a Park.
+
+    Tries exact (case-insensitive) match first, then substring. Raises
+    ValueError on no match or ambiguous match (with candidate names).
+    """
+    parks = get_parks(client)
+    q = query.strip().lower()
+    exact = [p for p in parks if p.name.lower() == q]
+    if len(exact) == 1:
+        return exact[0]
+    matches = [p for p in parks if q in p.name.lower()]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise ValueError(f"no park matches {query!r}")
+    names = ", ".join(p.name for p in matches[:5])
+    more = "" if len(matches) <= 5 else f" (+{len(matches) - 5} more)"
+    raise ValueError(f"ambiguous park {query!r}: matches {names}{more} — be more specific")

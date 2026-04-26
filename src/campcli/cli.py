@@ -1,8 +1,9 @@
 """Typer CLI. Each command is a thin shell over a service function."""
 from __future__ import annotations
 
+import os
 import webbrowser
-from datetime import date
+from datetime import date, timedelta
 
 import typer
 
@@ -35,12 +36,15 @@ def _parse_hours(text: str) -> float:
     h = float(m.group(1) or 0)
     minutes = float(m.group(2) or 0)
     return h + minutes / 60.0
+from . import daemon as daemon_svc
+from . import store
 from .api import ApiError, BCParksClient, RateLimited
 from .availability import check_park
 from .booking import quote_url
-from .catalog import CATALOG_PATH, fetch_maps, find_park, get_parks
+from .catalog import CATALOG_PATH, fetch_maps, find_park, get_parks, resolve_park
 from .constants import BASE_URL, CONFIG_DIR, DB_PATH, DEFAULT_PROFILE, DRIVE_TIMES_PATH
 from .drive_times import build_cache as build_drive_cache
+from .models import Booking
 from .search import run as run_search
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -48,10 +52,14 @@ parks_app = typer.Typer(no_args_is_help=True, help="Discover parks and sub-areas
 watch_app = typer.Typer(no_args_is_help=True, help="Manage persistent availability watches.")
 book_app = typer.Typer(no_args_is_help=True, help="Booking deep-link helpers.")
 catalog_app = typer.Typer(no_args_is_help=True, help="Manage the cached park catalog.")
+bookings_app = typer.Typer(no_args_is_help=True, help="Manage existing campsite bookings.")
+blocked_app = typer.Typer(no_args_is_help=True, help="Manage the blocklist of unwanted parks.")
 app.add_typer(parks_app, name="parks")
 app.add_typer(watch_app, name="watch")
 app.add_typer(book_app, name="book")
 app.add_typer(catalog_app, name="catalog")
+app.add_typer(bookings_app, name="bookings")
+app.add_typer(blocked_app, name="blocked")
 
 
 def _exit_for(err: Exception) -> typer.Exit:
@@ -344,6 +352,137 @@ def doctor() -> None:
     except Exception as e:
         typer.echo(f"api error:   {e}", err=True)
         raise typer.Exit(code=5) from e
+
+
+# ----- bookings --------------------------------------------------------------
+
+def _render_booking(b: Booking) -> str:
+    site = f" #{b.site_name}" if b.site_name else ""
+    map_part = f" — {b.map_name}" if b.map_name else ""
+    fee = f" ${b.fee:.2f}" if b.fee is not None else ""
+    party = f" party={b.party_size}" if b.party_size is not None else ""
+    notes = f"  ({b.notes})" if b.notes else ""
+    return (
+        f"#{b.id}  {b.park_name}{map_part}{site}  "
+        f"{b.start_date.isoformat()} → {b.end_date.isoformat()}{fee}{party}{notes}"
+    )
+
+
+@bookings_app.command("list")
+def bookings_list() -> None:
+    rows = store.list_bookings()
+    if not rows:
+        typer.echo("no bookings")
+        return
+    for b in rows:
+        typer.echo(_render_booking(b))
+
+
+@bookings_app.command("add")
+def bookings_add(
+    park: str = typer.Option(..., "--park", help="Park name (substring or exact)."),
+    start: str = typer.Option(..., "--start", help="YYYY-MM-DD check-in date."),
+    nights: int = typer.Option(..., "--nights", "-n"),
+    map_name: str | None = typer.Option(None, "--map", help="Sub-area / loop name."),
+    site: str | None = typer.Option(None, "--site", help="Site label, e.g. B31."),
+    party: int | None = typer.Option(None, "--party"),
+    fee: float | None = typer.Option(None, "--fee"),
+    notes: str | None = typer.Option(None, "--notes"),
+) -> None:
+    """Record a confirmed booking. Used to suppress notifications for adjacent weekends."""
+    try:
+        with BCParksClient() as client:
+            p = resolve_park(client, park)
+    except ValueError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    except Exception as e:
+        raise _exit_for(e) from e
+    start_d = date.fromisoformat(start)
+    b = Booking(
+        park_id=p.park_id,
+        park_name=p.name,
+        map_name=map_name,
+        site_name=site,
+        start_date=start_d,
+        end_date=start_d + timedelta(days=nights),
+        party_size=party,
+        fee=fee,
+        notes=notes,
+    )
+    saved = store.add_booking(b)
+    typer.echo(_render_booking(saved))
+
+
+@bookings_app.command("rm")
+def bookings_rm(booking_id: int = typer.Argument(...)) -> None:
+    if not store.remove_booking(booking_id):
+        typer.echo(f"booking {booking_id} not found", err=True)
+        raise typer.Exit(code=2)
+    typer.echo(f"removed booking {booking_id}")
+
+
+# ----- blocked ---------------------------------------------------------------
+
+@blocked_app.command("list")
+def blocked_list() -> None:
+    rows = store.list_blocked_parks()
+    if not rows:
+        typer.echo("no blocked parks")
+        return
+    for bp in rows:
+        typer.echo(f"{bp.park_id}\t{bp.park_name}")
+
+
+@blocked_app.command("add")
+def blocked_add(park: str = typer.Argument(..., help="Park name (substring or exact).")) -> None:
+    try:
+        with BCParksClient() as client:
+            p = resolve_park(client, park)
+    except ValueError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=2) from e
+    except Exception as e:
+        raise _exit_for(e) from e
+    bp = store.add_blocked_park(p.park_id, p.name)
+    typer.echo(f"blocked: {bp.park_name} (id={bp.park_id})")
+
+
+@blocked_app.command("rm")
+def blocked_rm(park: str = typer.Argument(..., help="Park name or numeric id.")) -> None:
+    if park.isdigit():
+        park_id = int(park)
+    else:
+        try:
+            with BCParksClient() as client:
+                p = resolve_park(client, park)
+        except ValueError as e:
+            typer.echo(f"error: {e}", err=True)
+            raise typer.Exit(code=2) from e
+        park_id = p.park_id
+    if not store.remove_blocked_park(park_id):
+        typer.echo(f"park {park_id} not in blocklist", err=True)
+        raise typer.Exit(code=2)
+    typer.echo(f"unblocked {park_id}")
+
+
+# ----- daemon ----------------------------------------------------------------
+
+@app.command("daemon")
+def daemon_cmd(
+    interval: float = typer.Option(1.0, "--interval", help="Seconds to sleep between polls."),
+) -> None:
+    """Long-running poller. Sends a Telegram message ASAP for each new match.
+
+    Requires env vars TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
+    Suppresses matches in blocked parks and within 14 days of an existing booking.
+    """
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        typer.echo("error: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID", err=True)
+        raise typer.Exit(code=2)
+    daemon_svc.run_forever(bot_token=token, chat_id=chat_id, interval_secs=interval)
 
 
 if __name__ == "__main__":
