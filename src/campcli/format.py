@@ -96,28 +96,37 @@ def _pretty_date(d) -> str:
     return d.strftime("%a, %b %d")
 
 
-def render_search_results(matches: list[WeekendMatch]) -> str:
-    if not matches:
-        return "no availability matching profile"
-    drive_cache = load_drive_cache()
+def _drive_hours(drive_cache: dict, pid: int) -> float | None:
+    return drive_cache.get(pid, {}).get("hours")
 
-    def park_drive(pid: int) -> float:
-        h = drive_cache.get(pid, {}).get("hours")
-        return h if h is not None else 99.0
 
+def _drive_suffix(drive_cache: dict, pid: int) -> str:
+    h = _drive_hours(drive_cache, pid)
+    return f"  ({h:.1f}h)" if h is not None else ""
+
+
+def _spot_label(r: WeekendMatch) -> str:
+    spots = "spot" if r.available_count == 1 else "spots"
+    return f"{r.available_count} {spots}"
+
+
+def _match_url(r: WeekendMatch) -> str:
+    return quote_url(park_id=r.park_id, map_id=r.map_id, start=r.start_date, nights=r.nights)
+
+
+def _render_by_park(matches: list[WeekendMatch], drive_cache: dict, with_urls: bool) -> str:
     by_park: dict[int, list[WeekendMatch]] = {}
     for m in matches:
         by_park.setdefault(m.park_id, []).append(m)
 
-    park_ids = sorted(by_park.keys(), key=lambda pid: (park_drive(pid), by_park[pid][0].park_name))
+    park_ids = sorted(
+        by_park.keys(),
+        key=lambda pid: (_drive_hours(drive_cache, pid) or 99.0, by_park[pid][0].park_name),
+    )
     out: list[str] = []
     for pid in park_ids:
         rows = by_park[pid]
-        park_name = rows[0].park_name
-        h = drive_cache.get(pid, {}).get("hours")
-        drive = f"  ({h:.1f}h)" if h is not None else ""
-        out.append(f"{park_name}{drive}")
-
+        out.append(f"{rows[0].park_name}{_drive_suffix(drive_cache, pid)}")
         by_map: dict[int, list[WeekendMatch]] = {}
         for m in rows:
             by_map.setdefault(m.map_id, []).append(m)
@@ -125,11 +134,58 @@ def render_search_results(matches: list[WeekendMatch]) -> str:
             map_rows = sorted(by_map[map_id], key=lambda r: (r.start_date, r.nights))
             out.append(f"  {map_rows[0].map_name}")
             for r in map_rows:
-                spots = "spot" if r.available_count == 1 else "spots"
                 out.append(
-                    f"    {r.available_count} {spots} - "
+                    f"    {_spot_label(r)} - "
                     f"{_pretty_date(r.start_date)} -> {_pretty_date(r.end_date)} "
                     f"({r.nights}n)  {_fee_label(r.fee_per_night)}"
                 )
+                if with_urls:
+                    out.append(f"      {_match_url(r)}")
         out.append("")
     return "\n".join(out).rstrip()
+
+
+def _render_by_weekend(matches: list[WeekendMatch], drive_cache: dict, with_urls: bool) -> str:
+    by_weekend: dict[tuple, list[WeekendMatch]] = {}
+    for m in matches:
+        by_weekend.setdefault((m.start_date, m.nights), []).append(m)
+
+    out: list[str] = []
+    for key in sorted(by_weekend.keys()):
+        start, nights = key
+        end = by_weekend[key][0].end_date
+        out.append(f"{_pretty_date(start)} -> {_pretty_date(end)} ({nights}n)")
+
+        rows = by_weekend[key]
+        by_park: dict[int, list[WeekendMatch]] = {}
+        for r in rows:
+            by_park.setdefault(r.park_id, []).append(r)
+        park_ids = sorted(
+            by_park.keys(),
+            key=lambda pid: (_drive_hours(drive_cache, pid) or 99.0, by_park[pid][0].park_name),
+        )
+        for pid in park_ids:
+            prows = by_park[pid]
+            out.append(f"  {prows[0].park_name}{_drive_suffix(drive_cache, pid)}")
+            for r in sorted(prows, key=lambda x: x.map_name):
+                out.append(
+                    f"    {r.map_name} - {_spot_label(r)}  {_fee_label(r.fee_per_night)}"
+                )
+                if with_urls:
+                    out.append(f"      {_match_url(r)}")
+        out.append("")
+    return "\n".join(out).rstrip()
+
+
+def render_search_results(
+    matches: list[WeekendMatch],
+    group_by: str = "weekend",
+    *,
+    with_urls: bool = False,
+) -> str:
+    if not matches:
+        return "no availability matching profile"
+    drive_cache = load_drive_cache()
+    if group_by == "park":
+        return _render_by_park(matches, drive_cache, with_urls)
+    return _render_by_weekend(matches, drive_cache, with_urls)

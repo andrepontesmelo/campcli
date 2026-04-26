@@ -1,6 +1,7 @@
 """Typer CLI. Each command is a thin shell over a service function."""
 from __future__ import annotations
 
+import webbrowser
 from datetime import date
 
 import typer
@@ -177,9 +178,20 @@ def search_cmd(
         None, "--distance", "-d",
         help="Override max drive time (e.g. '4h', '3h30m', '210m').",
     ),
+    group_by: str = typer.Option(
+        "weekend", "--group-by", "-g",
+        help="Top-level grouping: 'weekend' (default) or 'park'.",
+    ),
+    with_urls: bool = typer.Option(
+        False, "--with-urls", "-u",
+        help="Print a clickable booking deep-link under each match.",
+    ),
     limit_parks: int | None = typer.Option(None, "--limit-parks", hidden=True),
 ) -> None:
     """Find campsites matching your profile (currently hardcoded: weekends, 4h drive, 3 months)."""
+    if group_by not in ("weekend", "park"):
+        typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
+        raise typer.Exit(code=1)
     profile = dict(DEFAULT_PROFILE)
     if months is not None:
         profile["horizon_months"] = months
@@ -198,7 +210,7 @@ def search_cmd(
             matches = run_search(client, profile, limit_parks=limit_parks, progress=progress)
     except Exception as e:
         raise _exit_for(e) from e
-    typer.echo(fmt.render_search_results(matches))
+    typer.echo(fmt.render_search_results(matches, group_by=group_by, with_urls=with_urls))
     if not matches:
         raise typer.Exit(code=3)
 
@@ -260,6 +272,28 @@ def watch_run(
 
 
 # ----- book ------------------------------------------------------------------
+
+@book_app.command("open")
+def book_open(
+    park: int = typer.Option(..., "--park", "-p"),
+    map_id: int = typer.Option(..., "--map", "-m"),
+    start: str = typer.Option(..., "--start"),
+    nights: int = typer.Option(..., "--nights", "-n"),
+    party_size: int = typer.Option(1, "--party-size"),
+) -> None:
+    """Open the BC Parks booking deep-link in the default browser."""
+    url = quote_url(
+        park_id=park,
+        map_id=map_id,
+        start=date.fromisoformat(start),
+        nights=nights,
+        party_size=party_size,
+    )
+    typer.echo(url)
+    if not webbrowser.open(url):
+        typer.echo("(could not launch a browser — copy the URL above)", err=True)
+        raise typer.Exit(code=1)
+
 
 @book_app.command("quote")
 def book_quote(

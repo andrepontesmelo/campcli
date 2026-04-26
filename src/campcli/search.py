@@ -76,6 +76,8 @@ def run(
             continue
 
         for m in maps:
+            if "walk-in" in m.name.lower() or "walk in" in m.name.lower():
+                continue
             # Per (map, Fri/Sat date) — query 2-night first; on a hit, skip the
             # corresponding 1-night sub-windows for that same start day.
             two_night_starts: set[date] = set()
