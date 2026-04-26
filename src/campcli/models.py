@@ -25,6 +25,18 @@ class AvailableSite(BaseModel):
     end_date: date
 
 
+class WeekendMatch(BaseModel):
+    park_id: int
+    park_name: str
+    map_id: int
+    map_name: str
+    start_date: date
+    end_date: date
+    nights: int
+    available_count: int
+    fee_per_night: float | None = None
+
+
 class Watch(BaseModel):
     id: int | None = None
     park_id: int

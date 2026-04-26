@@ -3,6 +3,7 @@
 Validated by the prior investigation in this directory (test-report.md).
 All IDs are large negative ints by GoingToCamp convention.
 """
+from calendar import FRIDAY, SATURDAY
 from pathlib import Path
 
 BASE_URL = "https://camping.bcparks.ca"
@@ -31,3 +32,21 @@ DRIVE_TIMES_PATH = CONFIG_DIR / "drive_times.json"
 
 # Home: 3310 Lancaster Ct, Coquitlam, BC
 HOME_LATLON = (49.2970917, -122.7658634)
+
+
+# Hardcoded user profile (will be configurable later).
+# Each pattern is (start_weekday, nights). `calendar.FRIDAY == 4`, `SATURDAY == 5`.
+DEFAULT_PROFILE = {
+    "name": "weekends",
+    "patterns": [
+        (FRIDAY, 2),    # Fri -> Sun (preferred)
+        (FRIDAY, 1),    # Fri -> Sat
+        (SATURDAY, 1),  # Sat -> Sun
+    ],
+    "horizon_months": 3,
+    "max_drive_hours": 4.0,
+}
+
+# Pricing seasons. Peak: Jun 15 through Labour Day (first Mon of September).
+# Outside that range counts as shoulder/off-season.
+PEAK_START_MONTH_DAY = (6, 15)
