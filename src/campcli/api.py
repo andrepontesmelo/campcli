@@ -60,6 +60,13 @@ class BCParksClient:
         """
         return self._get("/api/maps", params={"resourceLocationId": park_id})
 
+    def resource_details(self, *, park_id: int, map_id: int) -> Any:
+        """Fetch map/resource details — used to extract per-site fee structure."""
+        return self._get(
+            "/api/resource/details",
+            params={"resourceLocationId": park_id, "mapId": map_id},
+        )
+
     def map_availability(
         self,
         *,

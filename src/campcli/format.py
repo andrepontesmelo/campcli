@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from .booking import quote_url
 from .drive_times import load_cache as load_drive_cache
-from .models import AvailableSite, Map, Park, Watch
+from .models import AvailableSite, Map, Park, Watch, WeekendMatch
 
 
 def _drive_label(park_id: int, drive_cache: dict) -> str:
@@ -86,3 +86,50 @@ def render_available_list(sites: list[AvailableSite]) -> str:
     if not sites:
         return "no availability"
     return "\n".join(render_available(s) for s in sites)
+
+
+def _fee_label(fee: float | None) -> str:
+    return f"${fee:.0f}/night" if fee is not None else "$?/night"
+
+
+def _pretty_date(d) -> str:
+    return d.strftime("%a, %b %d")
+
+
+def render_search_results(matches: list[WeekendMatch]) -> str:
+    if not matches:
+        return "no availability matching profile"
+    drive_cache = load_drive_cache()
+
+    def park_drive(pid: int) -> float:
+        h = drive_cache.get(pid, {}).get("hours")
+        return h if h is not None else 99.0
+
+    by_park: dict[int, list[WeekendMatch]] = {}
+    for m in matches:
+        by_park.setdefault(m.park_id, []).append(m)
+
+    park_ids = sorted(by_park.keys(), key=lambda pid: (park_drive(pid), by_park[pid][0].park_name))
+    out: list[str] = []
+    for pid in park_ids:
+        rows = by_park[pid]
+        park_name = rows[0].park_name
+        h = drive_cache.get(pid, {}).get("hours")
+        drive = f"  ({h:.1f}h)" if h is not None else ""
+        out.append(f"{park_name}{drive}")
+
+        by_map: dict[int, list[WeekendMatch]] = {}
+        for m in rows:
+            by_map.setdefault(m.map_id, []).append(m)
+        for map_id in sorted(by_map.keys(), key=lambda mid: by_map[mid][0].map_name):
+            map_rows = sorted(by_map[map_id], key=lambda r: (r.start_date, r.nights))
+            out.append(f"  {map_rows[0].map_name}")
+            for r in map_rows:
+                spots = "spot" if r.available_count == 1 else "spots"
+                out.append(
+                    f"    {r.available_count} {spots} - "
+                    f"{_pretty_date(r.start_date)} -> {_pretty_date(r.end_date)} "
+                    f"({r.nights}n)  {_fee_label(r.fee_per_night)}"
+                )
+        out.append("")
+    return "\n".join(out).rstrip()

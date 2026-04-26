@@ -38,8 +38,9 @@ from .api import ApiError, BCParksClient, RateLimited
 from .availability import check_park
 from .booking import quote_url
 from .catalog import CATALOG_PATH, fetch_maps, find_park, get_parks
-from .constants import BASE_URL, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH
+from .constants import BASE_URL, CONFIG_DIR, DB_PATH, DEFAULT_PROFILE, DRIVE_TIMES_PATH
 from .drive_times import build_cache as build_drive_cache
+from .search import run as run_search
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 parks_app = typer.Typer(no_args_is_help=True, help="Discover parks and sub-areas (maps).")
@@ -164,6 +165,41 @@ def check(
         raise _exit_for(e) from e
     typer.echo(fmt.render_available_list(sites))
     if not sites:
+        raise typer.Exit(code=3)
+
+
+# ----- search ----------------------------------------------------------------
+
+@app.command("search")
+def search_cmd(
+    months: int | None = typer.Option(None, "--months", help="Override profile horizon (months)."),
+    distance: str | None = typer.Option(
+        None, "--distance", "-d",
+        help="Override max drive time (e.g. '4h', '3h30m', '210m').",
+    ),
+    limit_parks: int | None = typer.Option(None, "--limit-parks", hidden=True),
+) -> None:
+    """Find campsites matching your profile (currently hardcoded: weekends, 4h drive, 3 months)."""
+    profile = dict(DEFAULT_PROFILE)
+    if months is not None:
+        profile["horizon_months"] = months
+    if distance is not None:
+        try:
+            profile["max_drive_hours"] = _parse_hours(distance)
+        except ValueError as e:
+            typer.echo(f"error: {e}", err=True)
+            raise typer.Exit(code=1) from e
+
+    def progress(msg: str) -> None:
+        typer.echo(msg, err=True)
+
+    try:
+        with BCParksClient() as client:
+            matches = run_search(client, profile, limit_parks=limit_parks, progress=progress)
+    except Exception as e:
+        raise _exit_for(e) from e
+    typer.echo(fmt.render_search_results(matches))
+    if not matches:
         raise typer.Exit(code=3)
 
 
