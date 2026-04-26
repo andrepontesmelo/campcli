@@ -40,11 +40,11 @@ DEFAULT_PROFILE = {
     "name": "weekends",
     "patterns": [
         (FRIDAY, 2),    # Fri -> Sun (preferred)
-        (FRIDAY, 1),    # Fri -> Sat
-        (SATURDAY, 1),  # Sat -> Sun
+#        (FRIDAY, 1),    # Fri -> Sat
+#        (SATURDAY, 1),  # Sat -> Sun
     ],
     "horizon_months": 3,
-    "max_drive_hours": 4.0,
+    "max_drive_hours": 3.0,
 }
 
 # Pricing seasons. Peak: Jun 15 through Labour Day (first Mon of September).
