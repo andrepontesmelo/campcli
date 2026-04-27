@@ -4,6 +4,7 @@ from __future__ import annotations
 import httpx
 
 from .booking import quote_url
+from .constants import nearest_holiday
 from .drive_times import load_cache as load_drive_cache
 from .models import WeekendMatch
 
@@ -99,8 +100,14 @@ def format_match_message(
         f"   {m.map_name}",
         f"   {m.start_date.strftime('%a %b %d')} → {m.end_date.strftime('%a %b %d')}  ({m.nights}n)  {fee}",
         f"   {m.available_count} {spots}",
+    ]
+    holiday = nearest_holiday(m.start_date, m.end_date)
+    if holiday is not None:
+        h_date, h_name = holiday
+        lines.append(f"   🎉 {h_name} ({h_date.strftime('%a %b %d')})")
+    lines.extend([
         _weeks_label(prev_gap_days, "before nearest booking"),
         _weeks_label(next_gap_days, "after nearest booking"),
         f"   {url}",
-    ]
+    ])
     return "\n".join(lines)
