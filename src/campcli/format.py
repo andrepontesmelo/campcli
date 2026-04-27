@@ -5,9 +5,20 @@ LLM-friendly (parseable) and human-friendly (readable).
 """
 from __future__ import annotations
 
+from datetime import date
+
 from .booking import quote_url
+from .constants import nearest_holiday
 from .drive_times import load_cache as load_drive_cache
 from .models import AvailableSite, Map, Park, Watch, WeekendMatch
+
+
+def _holiday_suffix(start: date, end: date) -> str:
+    h = nearest_holiday(start, end)
+    if h is None:
+        return ""
+    h_date, h_name = h
+    return f"  🎉 {h_name} ({h_date.strftime('%a %b %d')})"
 
 
 def _drive_label(park_id: int, drive_cache: dict) -> str:
@@ -138,6 +149,7 @@ def _render_by_park(matches: list[WeekendMatch], drive_cache: dict, with_urls: b
                     f"    {_spot_label(r)} - "
                     f"{_pretty_date(r.start_date)} -> {_pretty_date(r.end_date)} "
                     f"({r.nights}n)  {_fee_label(r.fee_per_night)}"
+                    f"{_holiday_suffix(r.start_date, r.end_date)}"
                 )
                 if with_urls:
                     out.append(f"      {_match_url(r)}")
@@ -154,7 +166,10 @@ def _render_by_weekend(matches: list[WeekendMatch], drive_cache: dict, with_urls
     for key in sorted(by_weekend.keys()):
         start, nights = key
         end = by_weekend[key][0].end_date
-        out.append(f"{_pretty_date(start)} -> {_pretty_date(end)} ({nights}n)")
+        out.append(
+            f"{_pretty_date(start)} -> {_pretty_date(end)} ({nights}n)"
+            f"{_holiday_suffix(start, end)}"
+        )
 
         rows = by_weekend[key]
         by_park: dict[int, list[WeekendMatch]] = {}
