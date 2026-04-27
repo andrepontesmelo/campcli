@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS blocked_parks (
     park_name TEXT NOT NULL,
     added_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -187,3 +192,19 @@ def remove_blocked_park(park_id: int) -> bool:
     with connect() as conn:
         cur = conn.execute("DELETE FROM blocked_parks WHERE park_id = ?", (park_id,))
         return cur.rowcount > 0
+
+
+# ----- settings --------------------------------------------------------------
+
+def get_setting(key: str) -> str | None:
+    with connect() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else None
+
+
+def set_setting(key: str, value: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (key, value),
+        )

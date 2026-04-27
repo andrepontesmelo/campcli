@@ -12,12 +12,9 @@ from . import filters, store
 from .api import BCParksClient
 from .constants import DEFAULT_PROFILE
 from .models import WeekendMatch
-from .notify import format_match_message, send_telegram
+from .notify import fetch_updates, format_match_message, send_telegram
 from .search import run as run_search
-
-
-def _log(msg: str) -> None:
-    print(f"[{datetime.now().isoformat(timespec='seconds')}] {msg}", file=sys.stderr, flush=True)
+from .store import get_setting, set_setting
 
 
 def run_forever(
@@ -29,6 +26,17 @@ def run_forever(
 ) -> None:
     profile = profile or DEFAULT_PROFILE
     seen: set[tuple[int, int, date, int]] = set()
+    update_offset: int | None = None
+    verbose_enabled = get_setting("verbose") == "on"
+
+    def _log(msg: str) -> None:
+        line = f"[{datetime.now().isoformat(timespec='seconds')}] {msg}"
+        print(line, file=sys.stderr, flush=True)
+        if verbose_enabled:
+            try:
+                send_telegram(bot_token, chat_id, line, client=tg_client)
+            except Exception:
+                pass
 
     with httpx.Client(timeout=15.0) as tg_client, BCParksClient() as client:
         try:
@@ -36,8 +44,37 @@ def run_forever(
         except Exception as e:
             _log(f"startup telegram failed: {e}")
 
+        if verbose_enabled:
+            _log("verbose logging is ON")
+
         while True:
             try:
+                # Poll for incoming Telegram commands.
+                updates = fetch_updates(bot_token, update_offset, client=tg_client)
+                for upd in updates:
+                    uid = upd.get("update_id")
+                    if uid is not None:
+                        update_offset = uid + 1
+                    msg = upd.get("message") or {}
+                    sender_chat = str((msg.get("chat") or {}).get("id", ""))
+                    if sender_chat != chat_id:
+                        continue
+                    text = (msg.get("text") or "").strip()
+                    _log(f"received command: {text!r}")
+                    if text == "/verbose on":
+                        set_setting("verbose", "on")
+                        verbose_enabled = True
+                        send_telegram(
+                            bot_token, chat_id, "verbose logging ON", client=tg_client,
+                        )
+                    elif text == "/verbose off":
+                        set_setting("verbose", "off")
+                        verbose_enabled = False
+                        send_telegram(
+                            bot_token, chat_id, "verbose logging OFF", client=tg_client,
+                        )
+
+                # Check availability.
                 bookings = store.list_bookings()
                 blocked_ids = {b.park_id for b in store.list_blocked_parks()}
                 _log(
