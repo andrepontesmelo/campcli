@@ -37,6 +37,33 @@ def send_telegram(
             c.close()
 
 
+def fetch_updates(
+    token: str,
+    offset: int | None = None,
+    *,
+    client: httpx.Client | None = None,
+) -> list[dict]:
+    """Short-poll Telegram for incoming updates (timeout=0). Returns [] on any error."""
+    own_client = client is None
+    c = client or httpx.Client(timeout=15.0)
+    try:
+        url = f"https://api.telegram.org/bot{token}/getUpdates"
+        params: dict[str, int] = {"timeout": 0}
+        if offset is not None:
+            params["offset"] = offset
+        resp = c.get(url, params=params)
+        resp.raise_for_status()
+        data = resp.json()
+        if not data.get("ok"):
+            return []
+        return data.get("result", [])
+    except Exception:
+        return []
+    finally:
+        if own_client:
+            c.close()
+
+
 def _chunks(text: str, n: int):
     if len(text) <= n:
         yield text
