@@ -40,7 +40,7 @@ def run_forever(
 
     with httpx.Client(timeout=15.0) as tg_client, BCParksClient() as client:
         try:
-            send_telegram(bot_token, chat_id, "campcli daemon started", client=tg_client)
+            send_telegram(bot_token, chat_id, "campcli daemon started v3", client=tg_client)
         except Exception as e:
             _log(f"startup telegram failed: {e}")
 
