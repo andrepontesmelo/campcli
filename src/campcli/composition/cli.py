@@ -20,7 +20,7 @@ from ..infrastructure.api import BCParksClient
 from ..application.availability import check_park
 from ..application.booking_links import quote_url
 from ..infrastructure.clock import SystemClock
-from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH
+from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH, max_bookable_start
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..domain.ports import ApiError, RateLimited
@@ -47,6 +47,7 @@ def _parse_hours(text: str) -> float:
     h = float(m.group(1) or 0)
     minutes = float(m.group(2) or 0)
     return h + minutes / 60.0
+
 
 
 def _parse_hours_or_exit(text: str | None) -> float | None:
@@ -97,7 +98,6 @@ def api_call():
         raise
     except Exception as e:
         raise _exit_for(e) from e
-
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 parks_app = typer.Typer(no_args_is_help=True, help="Discover parks and sub-areas (maps).")
@@ -171,6 +171,9 @@ def check(
     map_id: int | None = typer.Option(None, "--map", help="Limit to one map (sub-area)."),
 ) -> None:
     start_d = _parse_date_or_exit(start)
+    cutoff = max_bookable_start()
+    if start_d > cutoff:
+        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
     with api_call() as api:
         parks = api.list_parks()
         p = catalog.find_park(parks, park)
@@ -233,7 +236,11 @@ def watch_add(
     party_size: int = typer.Option(1, "--party-size"),
     label: str | None = typer.Option(None, "--label"),
 ) -> None:
-    w = watch_svc.add(park, _parse_date_or_exit(start), nights, party_size, label,
+    start_d = _parse_date_or_exit(start)
+    cutoff = max_bookable_start()
+    if start_d > cutoff:
+        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
+    w = watch_svc.add(park, start_d, nights, party_size, label,
                       watch_repo=_store(), clock=_CLOCK)
     typer.echo(fmt.render_watch(w))
 
@@ -284,6 +291,9 @@ def book_open(
     party_size: int = typer.Option(1, "--party-size"),
 ) -> None:
     start_d = _parse_date_or_exit(start)
+    cutoff = max_bookable_start()
+    if start_d > cutoff:
+        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
     url = quote_url(
         park_id=park,
         map_id=map_id,
@@ -306,6 +316,9 @@ def book_quote(
     party_size: int = typer.Option(1, "--party-size"),
 ) -> None:
     start_d = _parse_date_or_exit(start)
+    cutoff = max_bookable_start()
+    if start_d > cutoff:
+        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
     typer.echo(
         quote_url(
             park_id=park,
@@ -372,6 +385,9 @@ def bookings_add(
     notes: str | None = typer.Option(None, "--notes"),
 ) -> None:
     start_d = _parse_date_or_exit(start)
+    cutoff = max_bookable_start()
+    if start_d > cutoff:
+        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
     with api_call() as api:
         saved = bookings.add(
             api, park_query=park, start=start_d, nights=nights,

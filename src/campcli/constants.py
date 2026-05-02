@@ -31,6 +31,34 @@ DB_PATH = CONFIG_DIR / "state.db"
 CATALOG_PATH = CONFIG_DIR / "catalog.json"
 DRIVE_TIMES_PATH = CONFIG_DIR / "drive_times.json"
 
+# BC Parks system rule: reservations open only N months before start date.
+# Hard limit set by BC Parks — not user-configurable.
+BOOKING_WINDOW_MONTHS = 3
+
+# Personal minimum start date — ignore any booking starting before this.
+PERSONAL_MIN_START_DATE = date(2026, 7, 7)
+
+
+def max_bookable_start(today: date | None = None) -> date:
+    """Last start date bookable under BC Parks window (BOOKING_WINDOW_MONTHS).
+
+    Calendar-month math: Jan 4 → Apr 4. If resulting day exceeds month
+    length (e.g. Jan 31 → Apr 30), clamps to last day of month.
+    """
+    if today is None:
+        today = date.today()
+    total = today.month - 1 + BOOKING_WINDOW_MONTHS  # 0-indexed
+    year = today.year + total // 12
+    month = total % 12 + 1
+    # Clamp day to month length.
+    if month == 12:
+        dim = 31
+    else:
+        dim = (date(year, month + 1, 1) - date(year, month, 1)).days
+    day = min(today.day, dim)
+    return date(year, month, day)
+
+
 # Home: 3310 Lancaster Ct, Coquitlam, BC
 HOME_LATLON = (49.2970917, -122.7658634)
 

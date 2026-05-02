@@ -11,24 +11,37 @@ from typing import Callable
 
 from . import catalog
 from .availability import check_map
-from ..constants import DEFAULT_PROFILE
+from ..constants import DEFAULT_PROFILE, PERSONAL_MIN_START_DATE, max_bookable_start
 from .drive_times import DriveTimes
 from ..domain.models import Park, WeekendMatch
 from ..domain.ports import BCParksApi
 from .pricing import fee_per_night
 
 
-def expand_windows(today: date, profile: dict) -> list[tuple[date, int]]:
+def expand_windows(
+    today: date, profile: dict, max_start: date | None = None,
+    min_start: date | None = None,
+) -> list[tuple[date, int]]:
     """Yield every (start_date, nights) in `profile.patterns` within horizon.
 
     Skips windows that start in the past. Horizon is approximated as
     `horizon_months * 30` days — good enough for trip discovery.
+    When `max_start` is set, windows starting after it are excluded
+    (BC Parks booking window constraint — only start date matters).
+    When `min_start` is set, windows starting before it are excluded
+    (personal minimum date filter).
     """
     horizon_days = int(profile["horizon_months"]) * 30
     end = today + timedelta(days=horizon_days)
     out: list[tuple[date, int]] = []
     d = today
     while d <= end:
+        if min_start is not None and d < min_start:
+            d += timedelta(days=1)
+            continue
+        if max_start is not None and d > max_start:
+            d += timedelta(days=1)
+            continue
         for weekday, nights in profile["patterns"]:
             if d.weekday() == weekday and d >= today:
                 out.append((d, nights))
@@ -47,7 +60,11 @@ def run(
     on_match: Callable[[WeekendMatch], None] | None = None,
 ) -> list[WeekendMatch]:
     today = today or date.today()
-    windows = expand_windows(today, profile)
+    windows = expand_windows(
+        today, profile,
+        max_start=max_bookable_start(today),
+        min_start=PERSONAL_MIN_START_DATE,
+    )
     parks = catalog.list_parks_filtered(
         api, drive_times=drive_times, max_hours=profile["max_drive_hours"]
     )
