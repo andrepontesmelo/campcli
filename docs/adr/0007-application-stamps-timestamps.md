@@ -1,0 +1,3 @@
+# Application stamps timestamps, not Repo
+
+Previously `store.add_watch` and `store.add_booking` called `datetime.now()` internally, meaning timestamps were set at Infrastructure layer at persist-time. This made it impossible to control or assert timestamps in tests without monkeypatching. Changed so that Application use-case functions call `clock.now()` when constructing Domain models (`Watch.created_at`, `Booking.created_at`, `BlockedPark.added_at`), and the adapter persists the value verbatim. The adapter now raises `ValueError` if the timestamp is `None` — Application is contractually obligated to stamp before persisting. Tests use `FrozenClock` to pin timestamps deterministically.

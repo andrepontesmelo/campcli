@@ -1,0 +1,3 @@
+# Test fakes use duck-typing + module-level static assertion, not Protocol inheritance
+
+In `tests/conftest.py`, `FakeBCParksApi` and `FakeTelegram` are plain classes — they do NOT inherit from `BCParksApi` or `Telegram`. Protocol satisfaction is verified at module load by `_: Telegram = FakeTelegram()` and `_: BCParksApi = FakeBCParksApi()` assignments. Reason: subclassing a `Protocol` makes the subclass itself a Protocol (per PEP 544), which weakens the static check rather than strengthens it. The assignment trick gives mypy a structural-typing check at module import — drift in either fake or the Protocol fails fast in CI. Keep this pattern when adding new fakes; do not switch to inheritance.

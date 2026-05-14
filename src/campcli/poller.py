@@ -2,14 +2,14 @@
 from __future__ import annotations
 
 import sys
-from datetime import date, datetime
+from datetime import date
 
-from . import command_router, filters, store
+from . import command_router, filters
 from .constants import DEFAULT_PROFILE
 from .drive_times import load_cache as load_drive_cache
 from .format import render_match_message
 from .models import Booking, WeekendMatch
-from .ports import BCParksApi, Telegram
+from .ports import BCParksApi, BlockedParkRepo, BookingRepo, Clock, SettingsRepo, Telegram
 from .search import run as run_search
 
 
@@ -19,13 +19,21 @@ class Poller:
         *,
         api: BCParksApi,
         telegram: Telegram,
+        booking_repo: BookingRepo,
+        blocked_repo: BlockedParkRepo,
+        settings_repo: SettingsRepo,
+        clock: Clock,
         profile: dict | None = None,
     ) -> None:
         self._api = api
         self._telegram = telegram
+        self._booking_repo = booking_repo
+        self._blocked_repo = blocked_repo
+        self._settings_repo = settings_repo
+        self._clock = clock
         self._profile = profile or DEFAULT_PROFILE
         self._seen: set[tuple[int, int, date, int]] = set()
-        self._verbose = (store.get_setting("verbose") or "") == "on"
+        self._verbose = (settings_repo.get_setting("verbose") or "") == "on"
         self._update_offset: int | None = None
 
     def start(self) -> None:
@@ -38,8 +46,8 @@ class Poller:
 
     def tick(self) -> None:
         self._handle_commands()
-        bookings = store.list_bookings()
-        blocked_ids = {b.park_id for b in store.list_blocked_parks()}
+        bookings = self._booking_repo.list_bookings()
+        blocked_ids = {b.park_id for b in self._blocked_repo.list_blocked()}
         drive_cache = load_drive_cache()
         self.log(
             f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)}, "
@@ -58,10 +66,10 @@ class Poller:
 
     def set_verbose(self, on: bool) -> None:
         self._verbose = on
-        store.set_setting("verbose", "on" if on else "off")
+        self._settings_repo.set_setting("verbose", "on" if on else "off")
 
     def log(self, msg: str) -> None:
-        line = f"[{datetime.now().isoformat(timespec='seconds')}] {msg}"
+        line = f"[{self._clock.now().isoformat(timespec='seconds')}] {msg}"
         print(line, file=sys.stderr, flush=True)
         if self._verbose:
             try:

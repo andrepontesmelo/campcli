@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -41,9 +41,34 @@ class FakeTelegram:
         return out
 
 
+class FrozenClock:
+    def __init__(self, value: datetime) -> None:
+        self._value = value
+
+    def now(self) -> datetime:
+        return self._value
+
+
 # Static assertions: fakes satisfy their Protocols.
-_: BCParksApi = FakeBCParksApi()
-_: Telegram = FakeTelegram()
+_bcparks_api: BCParksApi = FakeBCParksApi()
+_telegram: Telegram = FakeTelegram()
+import shutil
+import tempfile
+from pathlib import Path
+from campcli.clock import SystemClock
+from campcli.ports import (
+    BlockedParkRepo, BookingRepo, Clock, SettingsRepo, WatchRepo,
+)
+from campcli.store import SqliteStore
+__clock_static: Clock = FrozenClock(datetime.now())
+__sysclock_static: Clock = SystemClock()
+__d = Path(tempfile.mkdtemp())
+__s = SqliteStore(__d / "t.db")
+__wr: WatchRepo = __s
+__br: BookingRepo = __s
+__bpr: BlockedParkRepo = __s
+__sr: SettingsRepo = __s
+shutil.rmtree(__d, ignore_errors=True)
 
 
 @pytest.fixture
@@ -57,14 +82,21 @@ def fake_telegram():
 
 
 @pytest.fixture
-def tmp_db(monkeypatch, tmp_path):
-    db_path = tmp_path / "test.db"
-    monkeypatch.setattr("campcli.store.CONFIG_DIR", tmp_path)
-    monkeypatch.setattr("campcli.store.DB_PATH", db_path)
-    return db_path
+def store(tmp_path):
+    from campcli.store import SqliteStore
+    return SqliteStore(tmp_path / "test.db")
 
 
 @pytest.fixture
-def poller(tmp_db, fake_api, fake_telegram):
+def clock():
+    return FrozenClock(datetime(2026, 1, 1, 12, 0, 0))
+
+
+@pytest.fixture
+def poller(store, clock, fake_api, fake_telegram):
     from campcli.poller import Poller
-    return Poller(api=fake_api, telegram=fake_telegram)
+    return Poller(
+        api=fake_api, telegram=fake_telegram,
+        booking_repo=store, blocked_repo=store,
+        settings_repo=store, clock=clock,
+    )

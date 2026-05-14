@@ -6,7 +6,10 @@ import time
 import traceback
 
 from .api import BCParksClient
+from .clock import SystemClock
+from .constants import DB_PATH
 from .poller import Poller
+from .store import SqliteStore
 from .telegram import HttpxTelegram
 
 
@@ -17,8 +20,15 @@ def run_forever(
     interval_secs: float = 1.0,
     profile: dict | None = None,
 ) -> None:
+    store = SqliteStore(DB_PATH)
+    clock = SystemClock()
     with HttpxTelegram(token=bot_token, chat_id=chat_id) as telegram, BCParksClient() as api:
-        poller = Poller(api=api, telegram=telegram, profile=profile)
+        poller = Poller(
+            api=api, telegram=telegram,
+            booking_repo=store, blocked_repo=store,
+            settings_repo=store, clock=clock,
+            profile=profile,
+        )
         poller.start()
         while True:
             try:
