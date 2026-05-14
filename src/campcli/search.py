@@ -9,11 +9,10 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Callable
 
-from .api import BCParksClient
 from .availability import check_map
-from .catalog import fetch_maps, get_parks
 from .drive_times import load_cache as load_drive_cache
 from .models import Park, WeekendMatch
+from .ports import BCParksApi
 from .pricing import fee_per_night
 
 
@@ -46,7 +45,7 @@ def filter_parks_by_drive(parks: list[Park], max_hours: float) -> list[Park]:
 
 
 def run(
-    client: BCParksClient,
+    api: BCParksApi,
     profile: dict,
     *,
     today: date | None = None,
@@ -56,7 +55,7 @@ def run(
 ) -> list[WeekendMatch]:
     today = today or date.today()
     windows = expand_windows(today, profile)
-    parks = get_parks(client)
+    parks = api.list_parks()
     parks = filter_parks_by_drive(parks, profile["max_drive_hours"])
     if limit_parks is not None:
         parks = parks[:limit_parks]
@@ -70,7 +69,7 @@ def run(
         if progress:
             progress(f"[{i}/{total}] {park.name}")
         try:
-            maps = fetch_maps(client, park.park_id)
+            maps = api.list_maps(park.park_id)
         except Exception as e:
             if progress:
                 progress(f"  ! maps fetch failed for {park.name}: {e}")
@@ -79,28 +78,23 @@ def run(
         for m in maps:
             if "walk-in" in m.name.lower() or "walk in" in m.name.lower():
                 continue
-            # Per (map, Fri/Sat date) — query 2-night first; on a hit, skip the
-            # corresponding 1-night sub-windows for that same start day.
             two_night_starts: set[date] = set()
-            # Sort so 2-night windows are checked before their 1-night siblings.
             map_windows = sorted(windows, key=lambda w: (w[0], -w[1]))
             for start, nights in map_windows:
-                # A successful 2-night Fri-Sun implies both Fri-Sat (same start)
-                # and Sat-Sun (start + 1) are also available — skip those.
                 if nights == 1 and (
                     start in two_night_starts
                     or (start - timedelta(days=1)) in two_night_starts
                 ):
                     continue
                 try:
-                    sites = check_map(client, park, m, start, nights, party_size=1)
+                    sites = check_map(api, park, m, start, nights, party_size=1)
                 except Exception:
                     continue
                 if not sites:
                     continue
                 if nights == 2:
                     two_night_starts.add(start)
-                fee = fee_per_night(client, park.park_id, m.map_id, start)
+                fee = fee_per_night(api, park.park_id, m.map_id, start)
                 match = WeekendMatch(
                     park_id=park.park_id,
                     park_name=park.name,

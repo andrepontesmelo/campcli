@@ -23,4 +23,12 @@ packages = ["src/campcli"]
 dev = [
     "pytest>=8.0",
     "pytest-httpx>=0.35",
+    "mypy>=1.15",
 ]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["src/campcli"]
+strict = false
+warn_unused_ignores = true
+check_untyped_defs = true

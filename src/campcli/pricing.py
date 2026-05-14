@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .api import BCParksClient  # noqa: F401  (kept for future real-fetch impl)
+from .ports import BCParksApi  # noqa: F401  (kept for future real-fetch impl)
 from .constants import PEAK_START_MONTH_DAY
 
 
@@ -36,7 +36,7 @@ def season_for(d: date) -> str:
 
 
 def fee_per_night(
-    client: BCParksClient,
+    api: BCParksApi,
     park_id: int,
     map_id: int,
     on_date: date,
