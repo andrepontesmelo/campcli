@@ -1,0 +1,107 @@
+"""Poller — Application service for daemon poll-and-notify loop."""
+from __future__ import annotations
+
+import sys
+from datetime import date, datetime
+
+from . import command_router, filters, store
+from .constants import DEFAULT_PROFILE
+from .drive_times import load_cache as load_drive_cache
+from .format import render_match_message
+from .models import Booking, WeekendMatch
+from .ports import BCParksApi, Telegram
+from .search import run as run_search
+
+
+class Poller:
+    def __init__(
+        self,
+        *,
+        api: BCParksApi,
+        telegram: Telegram,
+        profile: dict | None = None,
+    ) -> None:
+        self._api = api
+        self._telegram = telegram
+        self._profile = profile or DEFAULT_PROFILE
+        self._seen: set[tuple[int, int, date, int]] = set()
+        self._verbose = (store.get_setting("verbose") or "") == "on"
+        self._update_offset: int | None = None
+
+    def start(self) -> None:
+        try:
+            self._telegram.send("campcli daemon started v3")
+        except Exception as e:
+            self.log(f"startup telegram failed: {e}")
+        if self._verbose:
+            self.log("verbose logging is ON")
+
+    def tick(self) -> None:
+        self._handle_commands()
+        bookings = store.list_bookings()
+        blocked_ids = {b.park_id for b in store.list_blocked_parks()}
+        drive_cache = load_drive_cache()
+        self.log(
+            f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)}, "
+            f"seen={len(self._seen)})"
+        )
+
+        def on_match(m: WeekendMatch) -> None:
+            self._dispatch_match(m, bookings, blocked_ids, drive_cache)
+
+        run_search(
+            self._api,
+            self._profile,
+            progress=self.log,
+            on_match=on_match,
+        )
+
+    def set_verbose(self, on: bool) -> None:
+        self._verbose = on
+        store.set_setting("verbose", "on" if on else "off")
+
+    def log(self, msg: str) -> None:
+        line = f"[{datetime.now().isoformat(timespec='seconds')}] {msg}"
+        print(line, file=sys.stderr, flush=True)
+        if self._verbose:
+            try:
+                self._telegram.send(line)
+            except Exception:
+                pass
+
+    def _handle_commands(self) -> None:
+        updates = self._telegram.poll_updates(offset=self._update_offset)
+        for upd in updates:
+            self._update_offset = upd.update_id + 1
+            self.log(f"received command: {upd.text!r}")
+            reply = command_router.dispatch(upd.text, self)
+            if reply:
+                self._telegram.send(reply)
+
+    def _dispatch_match(
+        self,
+        m: WeekendMatch,
+        bookings: list[Booking],
+        blocked_ids: set[int],
+        drive_cache: dict,
+    ) -> None:
+        key = (m.park_id, m.map_id, m.start_date, m.nights)
+        if key in self._seen:
+            return
+        if not filters.should_notify(m, bookings=bookings, blocked_park_ids=blocked_ids):
+            self._seen.add(key)
+            return
+        prev_gap, next_gap = filters.gap_days_to_nearest(m.start_date, bookings)
+        text = render_match_message(
+            m,
+            prev_gap_days=prev_gap,
+            next_gap_days=next_gap,
+            drive_cache=drive_cache,
+        )
+        try:
+            self._telegram.send(text)
+            self.log(f"notified: {m.park_name} {m.map_name} {m.start_date}")
+        except Exception as e:
+            self.log(f"telegram send failed: {e}")
+            return
+        self._seen.add(key)
