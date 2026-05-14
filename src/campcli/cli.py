@@ -9,7 +9,9 @@ import typer
 
 import re
 
+from . import daemon as daemon_svc
 from . import format as fmt
+from . import store
 from . import watches as watch_svc
 from .drive_times import load_cache as load_drive_cache
 
@@ -36,13 +38,12 @@ def _parse_hours(text: str) -> float:
     h = float(m.group(1) or 0)
     minutes = float(m.group(2) or 0)
     return h + minutes / 60.0
-from . import daemon as daemon_svc
-from . import store
-from .api import ApiError, BCParksClient, RateLimited
+from .api import BCParksClient
 from .availability import check_park
 from .booking import quote_url
-from .catalog import CATALOG_PATH, fetch_maps, find_park, get_parks, resolve_park
-from .constants import BASE_URL, CONFIG_DIR, DB_PATH, DEFAULT_PROFILE, DRIVE_TIMES_PATH
+from .catalog import find_park, resolve_park
+from .constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DEFAULT_PROFILE, DRIVE_TIMES_PATH
+from .ports import ApiError, RateLimited
 from .drive_times import build_cache as build_drive_cache
 from .models import Booking
 from .search import run as run_search
@@ -86,7 +87,7 @@ def parks_list(
     """List BC Parks campgrounds, sorted by drive time. Filter by name or max distance."""
     try:
         with BCParksClient() as client:
-            parks = get_parks(client)
+            parks = client.list_parks()
     except Exception as e:
         raise _exit_for(e) from e
     if search:
@@ -118,7 +119,7 @@ def parks_drive_times(
     """
     try:
         with BCParksClient() as client:
-            parks = get_parks(client)
+            parks = client.list_parks()
     except Exception as e:
         raise _exit_for(e) from e
 
@@ -135,12 +136,12 @@ def parks_show(park_id: int = typer.Argument(...)) -> None:
     """Show a park and its maps (sub-areas)."""
     try:
         with BCParksClient() as client:
-            parks = get_parks(client)
+            parks = client.list_parks()
             park = find_park(parks, park_id)
             if park is None:
                 typer.echo(f"park {park_id} not found", err=True)
                 raise typer.Exit(code=2)
-            maps = fetch_maps(client, park_id)
+            maps = client.list_maps(park_id)
     except typer.Exit:
         raise
     except Exception as e:
@@ -162,7 +163,7 @@ def check(
     start_d = date.fromisoformat(start)
     try:
         with BCParksClient() as client:
-            parks = get_parks(client)
+            parks = client.list_parks()
             p = find_park(parks, park)
             if p is None:
                 typer.echo(f"park {park} not found", err=True)
@@ -330,7 +331,7 @@ def catalog_refresh() -> None:
     """Force-refresh the on-disk park catalog cache."""
     try:
         with BCParksClient() as client:
-            parks = get_parks(client, refresh=True)
+            parks = client.list_parks(refresh=True)
     except Exception as e:
         raise _exit_for(e) from e
     typer.echo(f"cached {len(parks)} parks at {CATALOG_PATH}")

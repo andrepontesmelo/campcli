@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from .api import BCParksClient
 from .availability import check_park
-from .catalog import find_park, get_parks
+from .catalog import find_park
 from .models import AvailableSite, Park, Watch
+from .ports import BCParksApi
 from . import store
 
 
@@ -24,17 +24,17 @@ def remove(watch_id: int) -> bool:
     return store.remove_watch(watch_id)
 
 
-def run_one(client: BCParksClient, watch: Watch, parks: list[Park]) -> tuple[Watch, list[AvailableSite]]:
+def run_one(api: BCParksApi, watch: Watch, parks: list[Park]) -> tuple[Watch, list[AvailableSite]]:
     park = find_park(parks, watch.park_id)
     if park is None:
         park = Park(park_id=watch.park_id, name=f"park {watch.park_id}")
-    sites = check_park(client, park, watch.start_date, watch.nights, watch.party_size)
+    sites = check_park(api, park, watch.start_date, watch.nights, watch.party_size)
     return watch, sites
 
 
-def run_all(client: BCParksClient, watch_id: int | None = None) -> list[tuple[Watch, list[AvailableSite]]]:
+def run_all(api: BCParksApi, watch_id: int | None = None) -> list[tuple[Watch, list[AvailableSite]]]:
     watches = store.list_watches()
     if watch_id is not None:
         watches = [w for w in watches if w.id == watch_id]
-    parks = get_parks(client)
-    return [run_one(client, w, parks) for w in watches]
+    parks = api.list_parks()
+    return [run_one(api, w, parks) for w in watches]
