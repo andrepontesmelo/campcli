@@ -1,0 +1,3 @@
+# Repository Protocols + Clock seam
+
+The old `store.py` module exposed module-level functions (`add_watch`, `list_bookings`, `get_setting`, ...) that every Application module imported directly. Testing required monkeypatching `DB_PATH` and `CONFIG_DIR` constants. Inverted by defining four narrow Repository Protocols in `ports.py` (`WatchRepo`, `BookingRepo`, `BlockedParkRepo`, `SettingsRepo`) plus a `Clock` Protocol for time-stamping Domain objects. `SqliteStore` (`store.py`) is a single class satisfying all four Protocols. `SystemClock` (`clock.py`) satisfies Clock. Application use-case functions accept only the Protocol(s) they need as keyword arguments (ISP-honouring signatures), and `cli.py`/`daemon.py` (per ADR-0002) wire the concrete adapters.

@@ -1,0 +1,3 @@
+# Composition root limited to `cli.py` and `daemon.py`
+
+Only `src/campcli/cli.py` and `src/campcli/daemon.py` are allowed to import concrete adapter classes (`BCParksClient`, `HttpxTelegram`). Everywhere else in the codebase, dependencies are received as Protocol-typed arguments — see ADR-0001. This rule is what makes ADR-0001 enforceable: concentrating object construction in two entry-point files means a grep for `BCParksClient(` or `HttpxTelegram(` instantly shows every wiring site, and reviewers can reject new imports outside these files mechanically. A future second entry point (REST server, scheduled job) would join this short list; do not spread instantiation further.

@@ -1,0 +1,3 @@
+# Port exceptions live with the Protocol, not with the adapter
+
+`ApiError` and `RateLimited` are defined in `src/campcli/ports.py`, not in `src/campcli/api.py` where they used to live. The adapter (`BCParksClient`) imports them from `ports` and raises them; Application code (`cli._exit_for`, future error mappers) imports them from `ports`. Reason: the exception types are part of the port's contract — what callers must be prepared to handle — and Application code reading the port should never need to import from an Infrastructure module to catch a documented error mode. Moves the dependency arrow correctly inward (Infra → Domain).

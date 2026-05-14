@@ -1,4 +1,4 @@
-"""Watch service: thin orchestration over store + availability."""
+"""Watch service: thin orchestration over WatchRepo + availability."""
 from __future__ import annotations
 
 from datetime import date
@@ -6,22 +6,26 @@ from datetime import date
 from .availability import check_park
 from .catalog import find_park
 from .models import AvailableSite, Park, Watch
-from .ports import BCParksApi
-from . import store
+from .ports import BCParksApi, Clock, WatchRepo
 
 
-def add(park_id: int, start: date, nights: int, party_size: int = 1, label: str | None = None) -> Watch:
-    return store.add_watch(
-        Watch(park_id=park_id, start_date=start, nights=nights, party_size=party_size, label=label)
+def add(
+    park_id: int, start: date, nights: int, party_size: int = 1,
+    label: str | None = None, *, watch_repo: WatchRepo, clock: Clock,
+) -> Watch:
+    w = Watch(
+        park_id=park_id, start_date=start, nights=nights,
+        party_size=party_size, label=label, created_at=clock.now(),
     )
+    return watch_repo.add_watch(w)
 
 
-def list_all() -> list[Watch]:
-    return store.list_watches()
+def list_all(*, watch_repo: WatchRepo) -> list[Watch]:
+    return watch_repo.list_watches()
 
 
-def remove(watch_id: int) -> bool:
-    return store.remove_watch(watch_id)
+def remove(watch_id: int, *, watch_repo: WatchRepo) -> bool:
+    return watch_repo.remove_watch(watch_id)
 
 
 def run_one(api: BCParksApi, watch: Watch, parks: list[Park]) -> tuple[Watch, list[AvailableSite]]:
@@ -32,8 +36,10 @@ def run_one(api: BCParksApi, watch: Watch, parks: list[Park]) -> tuple[Watch, li
     return watch, sites
 
 
-def run_all(api: BCParksApi, watch_id: int | None = None) -> list[tuple[Watch, list[AvailableSite]]]:
-    watches = store.list_watches()
+def run_all(
+    api: BCParksApi, *, watch_repo: WatchRepo, watch_id: int | None = None,
+) -> list[tuple[Watch, list[AvailableSite]]]:
+    watches = watch_repo.list_watches()
     if watch_id is not None:
         watches = [w for w in watches if w.id == watch_id]
     parks = api.list_parks()

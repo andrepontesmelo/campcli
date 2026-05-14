@@ -1,0 +1,3 @@
+# Application depends on Protocols, never on concrete adapters
+
+External I/O (BC Parks HTTP API, Telegram) is reached through `typing.Protocol` ports declared in `src/campcli/ports.py` (`BCParksApi`, `Telegram`). Application modules (`availability.py`, `search.py`, `watches.py`, `catalog.py`, `bookings.py`, `blocked.py`, `poller.py`, `command_router.py`) accept a Protocol-typed dependency; they must never import the concrete adapter (`BCParksClient`, `HttpxTelegram`). This makes the Application layer testable through duck-typed fakes (no httpx setup, no live API) and lets a second source — Recreation.gov, AlbertaParks — drop in as a new adapter without touching Application code.
