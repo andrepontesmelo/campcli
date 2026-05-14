@@ -84,7 +84,7 @@ def run(
                     continue
                 if nights == 2:
                     two_night_starts.add(start)
-                fee = fee_per_night(api, park.park_id, m.map_id, start)
+                fee = fee_per_night(start)
                 match = WeekendMatch(
                     park_id=park.park_id,
                     park_name=park.name,

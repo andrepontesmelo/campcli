@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from datetime import date
 
-from .ports import BCParksApi  # noqa: F401  (kept for future real-fetch impl)
 from .constants import PEAK_START_MONTH_DAY
 
 
@@ -35,11 +34,10 @@ def season_for(d: date) -> str:
     return "peak" if peak_start <= d <= peak_end else "shoulder"
 
 
-def fee_per_night(
-    api: BCParksApi,
-    park_id: int,
-    map_id: int,
-    on_date: date,
-) -> float | None:
-    """Return estimated per-night base fee for a campsite on `on_date`."""
+def fee_per_night(on_date: date) -> float:
+    """Return estimated per-night base fee for a campsite on `on_date`.
+
+    A pure seasonal estimate — no live data. See ADR-0008 for why this is
+    not yet a FeeSource port.
+    """
     return PEAK_FEE if season_for(on_date) == "peak" else SHOULDER_FEE
