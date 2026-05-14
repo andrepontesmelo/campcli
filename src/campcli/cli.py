@@ -230,12 +230,12 @@ def watch_add(
 
 @watch_app.command("list")
 def watch_list() -> None:
-    typer.echo(fmt.render_watches(watch_svc.list_all(watch_repo=_store())))
+    typer.echo(fmt.render_watches(_store().list_watches()))
 
 
 @watch_app.command("rm")
 def watch_rm(watch_id: int = typer.Argument(...)) -> None:
-    if not watch_svc.remove(watch_id, watch_repo=_store()):
+    if not _store().remove_watch(watch_id):
         typer.echo(f"watch {watch_id} not found", err=True)
         raise typer.Exit(code=2)
     typer.echo(f"removed watch {watch_id}")

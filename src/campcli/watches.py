@@ -20,14 +20,6 @@ def add(
     return watch_repo.add_watch(w)
 
 
-def list_all(*, watch_repo: WatchRepo) -> list[Watch]:
-    return watch_repo.list_watches()
-
-
-def remove(watch_id: int, *, watch_repo: WatchRepo) -> bool:
-    return watch_repo.remove_watch(watch_id)
-
-
 def run_one(api: BCParksApi, watch: Watch, parks: list[Park]) -> tuple[Watch, list[AvailableSite]]:
     park = find_park(parks, watch.park_id)
     if park is None:
