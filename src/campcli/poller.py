@@ -6,7 +6,7 @@ from datetime import date
 
 from . import command_router, filters
 from .constants import DEFAULT_PROFILE
-from .drive_times import load_cache as load_drive_cache
+from .drive_times import DriveTimes
 from .format import render_match_message
 from .models import Booking, WeekendMatch
 from .ports import BCParksApi, BlockedParkRepo, BookingRepo, Clock, SettingsRepo, Telegram
@@ -23,6 +23,7 @@ class Poller:
         blocked_repo: BlockedParkRepo,
         settings_repo: SettingsRepo,
         clock: Clock,
+        drive_times: DriveTimes,
         profile: dict | None = None,
     ) -> None:
         self._api = api
@@ -31,6 +32,7 @@ class Poller:
         self._blocked_repo = blocked_repo
         self._settings_repo = settings_repo
         self._clock = clock
+        self._drive_times = drive_times
         self._profile = profile or DEFAULT_PROFILE
         self._seen: set[tuple[int, int, date, int]] = set()
         self._verbose = (settings_repo.get_setting("verbose") or "") == "on"
@@ -48,18 +50,18 @@ class Poller:
         self._handle_commands()
         bookings = self._booking_repo.list_bookings()
         blocked_ids = {b.park_id for b in self._blocked_repo.list_blocked()}
-        drive_cache = load_drive_cache()
         self.log(
             f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)}, "
             f"seen={len(self._seen)})"
         )
 
         def on_match(m: WeekendMatch) -> None:
-            self._dispatch_match(m, bookings, blocked_ids, drive_cache)
+            self._dispatch_match(m, bookings, blocked_ids)
 
         run_search(
             self._api,
             self._profile,
+            drive_times=self._drive_times,
             progress=self.log,
             on_match=on_match,
         )
@@ -91,7 +93,6 @@ class Poller:
         m: WeekendMatch,
         bookings: list[Booking],
         blocked_ids: set[int],
-        drive_cache: dict,
     ) -> None:
         key = (m.park_id, m.map_id, m.start_date, m.nights)
         if key in self._seen:
@@ -104,7 +105,7 @@ class Poller:
             m,
             prev_gap_days=prev_gap,
             next_gap_days=next_gap,
-            drive_cache=drive_cache,
+            drive_times=self._drive_times,
         )
         try:
             self._telegram.send(text)

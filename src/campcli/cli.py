@@ -22,6 +22,7 @@ from .booking import quote_url
 from .clock import SystemClock
 from .constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH
 from .drive_times import build_cache as build_drive_cache
+from .drive_times import load_cache as load_drive_times
 from .ports import ApiError, RateLimited
 from .store import SqliteStore
 
@@ -124,9 +125,12 @@ def parks_list(
     ),
 ) -> None:
     max_hours = _parse_hours_or_exit(distance)
+    drive_times = load_drive_times()
     with api_call() as api:
-        parks = catalog.list_parks_filtered(api, search=search, max_hours=max_hours)
-    typer.echo(fmt.render_parks(parks))
+        parks = catalog.list_parks_filtered(
+            api, drive_times=drive_times, search=search, max_hours=max_hours
+        )
+    typer.echo(fmt.render_parks(parks, drive_times))
 
 
 @parks_app.command("drive-times")
@@ -153,7 +157,7 @@ def parks_show(park_id: int = typer.Argument(...)) -> None:
             typer.echo(f"park {park_id} not found", err=True)
             raise typer.Exit(code=2)
         maps = api.list_maps(park_id)
-    typer.echo(fmt.render_park_detail(park, maps))
+    typer.echo(fmt.render_park_detail(park, maps, load_drive_times()))
 
 
 # ----- check -----------------------------------------------------------------
@@ -202,13 +206,19 @@ def search_cmd(
         typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
         raise typer.Exit(code=1)
     profile = search.build_profile(months=months, max_hours=_parse_hours_or_exit(distance))
+    drive_times = load_drive_times()
 
     def progress(msg: str) -> None:
         typer.echo(msg, err=True)
 
     with api_call() as api:
-        matches = search.run(api, profile, limit_parks=limit_parks, progress=progress)
-    typer.echo(fmt.render_search_results(matches, group_by=group_by, with_urls=with_urls))
+        matches = search.run(
+            api, profile, drive_times=drive_times,
+            limit_parks=limit_parks, progress=progress,
+        )
+    typer.echo(fmt.render_search_results(
+        matches, group_by=group_by, with_urls=with_urls, drive_times=drive_times,
+    ))
     if not matches:
         raise typer.Exit(code=3)
 

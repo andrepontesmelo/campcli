@@ -45,9 +45,9 @@ class TestPollerDedup:
             start_date=date(2026, 8, 15), end_date=date(2026, 8, 17),
             nights=2, available_count=1,
         )
-        poller._dispatch_match(m, [], set(), {})
+        poller._dispatch_match(m, [], set())
         assert len(fake_telegram.sent) == 1
-        poller._dispatch_match(m, [], set(), {})
+        poller._dispatch_match(m, [], set())
         assert len(fake_telegram.sent) == 1
 
 
@@ -61,7 +61,7 @@ class TestPollerBlocked:
             start_date=date(2026, 8, 15), end_date=date(2026, 8, 17),
             nights=2, available_count=1,
         )
-        poller._dispatch_match(m, [], {1}, {})
+        poller._dispatch_match(m, [], {1})
         assert len(fake_telegram.sent) == 0
         key = (m.park_id, m.map_id, m.start_date, m.nights)
         assert key in poller._seen

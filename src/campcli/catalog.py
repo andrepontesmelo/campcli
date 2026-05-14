@@ -5,9 +5,9 @@ lookup logic that operates on already-resolved Domain objects.
 """
 from __future__ import annotations
 
+from .drive_times import DriveTimes
 from .models import Park
 from .ports import BCParksApi
-from .drive_times import load_cache as load_drive_cache
 
 
 def find_park(parks: list[Park], park_id: int) -> Park | None:
@@ -36,16 +36,13 @@ def resolve_park(api: BCParksApi, query: str) -> Park:
 
 
 def list_parks_filtered(
-    api: BCParksApi, *, search: str | None = None, max_hours: float | None = None,
+    api: BCParksApi, *, drive_times: DriveTimes,
+    search: str | None = None, max_hours: float | None = None,
 ) -> list[Park]:
     parks = api.list_parks()
     if search:
         q = search.lower()
         parks = [p for p in parks if q in p.name.lower()]
     if max_hours is not None:
-        cache = load_drive_cache()
-        parks = [
-            p for p in parks
-            if (h := cache.get(p.park_id, {}).get("hours")) is not None and h <= max_hours
-        ]
+        parks = [p for p in parks if drive_times.is_within(p.park_id, max_hours)]
     return parks

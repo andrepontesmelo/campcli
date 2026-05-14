@@ -8,6 +8,7 @@ import traceback
 from .api import BCParksClient
 from .clock import SystemClock
 from .constants import DB_PATH
+from .drive_times import load_cache as load_drive_times
 from .poller import Poller
 from .store import SqliteStore
 from .telegram import HttpxTelegram
@@ -22,11 +23,13 @@ def run_forever(
 ) -> None:
     store = SqliteStore(DB_PATH)
     clock = SystemClock()
+    drive_times = load_drive_times()
     with HttpxTelegram(token=bot_token, chat_id=chat_id) as telegram, BCParksClient() as api:
         poller = Poller(
             api=api, telegram=telegram,
             booking_repo=store, blocked_repo=store,
             settings_repo=store, clock=clock,
+            drive_times=drive_times,
             profile=profile,
         )
         poller.start()

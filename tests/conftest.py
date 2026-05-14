@@ -94,9 +94,11 @@ def clock():
 
 @pytest.fixture
 def poller(store, clock, fake_api, fake_telegram):
+    from campcli.drive_times import DriveTimes
     from campcli.poller import Poller
     return Poller(
         api=fake_api, telegram=fake_telegram,
         booking_repo=store, blocked_repo=store,
         settings_repo=store, clock=clock,
+        drive_times=DriveTimes.empty(),
     )
