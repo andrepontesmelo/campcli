@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from .models import Park
 from .ports import BCParksApi
+from .drive_times import load_cache as load_drive_cache
 
 
 def find_park(parks: list[Park], park_id: int) -> Park | None:
@@ -32,3 +33,19 @@ def resolve_park(api: BCParksApi, query: str) -> Park:
     names = ", ".join(p.name for p in matches[:5])
     more = "" if len(matches) <= 5 else f" (+{len(matches) - 5} more)"
     raise ValueError(f"ambiguous park {query!r}: matches {names}{more} — be more specific")
+
+
+def list_parks_filtered(
+    api: BCParksApi, *, search: str | None = None, max_hours: float | None = None,
+) -> list[Park]:
+    parks = api.list_parks()
+    if search:
+        q = search.lower()
+        parks = [p for p in parks if q in p.name.lower()]
+    if max_hours is not None:
+        cache = load_drive_cache()
+        parks = [
+            p for p in parks
+            if (h := cache.get(p.park_id, {}).get("hours")) is not None and h <= max_hours
+        ]
+    return parks

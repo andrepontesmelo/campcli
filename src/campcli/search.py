@@ -9,8 +9,9 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Callable
 
+from . import catalog
 from .availability import check_map
-from .drive_times import load_cache as load_drive_cache
+from .constants import DEFAULT_PROFILE
 from .models import Park, WeekendMatch
 from .ports import BCParksApi
 from .pricing import fee_per_night
@@ -34,16 +35,6 @@ def expand_windows(today: date, profile: dict) -> list[tuple[date, int]]:
     return out
 
 
-def filter_parks_by_drive(parks: list[Park], max_hours: float) -> list[Park]:
-    cache = load_drive_cache()
-    if not cache:
-        return []
-    return [
-        p for p in parks
-        if (h := cache.get(p.park_id, {}).get("hours")) is not None and h <= max_hours
-    ]
-
-
 def run(
     api: BCParksApi,
     profile: dict,
@@ -55,8 +46,7 @@ def run(
 ) -> list[WeekendMatch]:
     today = today or date.today()
     windows = expand_windows(today, profile)
-    parks = api.list_parks()
-    parks = filter_parks_by_drive(parks, profile["max_drive_hours"])
+    parks = catalog.list_parks_filtered(api, max_hours=profile["max_drive_hours"])
     if limit_parks is not None:
         parks = parks[:limit_parks]
 
@@ -114,3 +104,14 @@ def run(
                         if progress:
                             progress(f"  ! on_match callback failed: {e}")
     return matches
+
+
+def build_profile(
+    *, months: int | None = None, max_hours: float | None = None,
+) -> dict:
+    profile = dict(DEFAULT_PROFILE)
+    if months is not None:
+        profile["horizon_months"] = months
+    if max_hours is not None:
+        profile["max_drive_hours"] = max_hours
+    return profile
