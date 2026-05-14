@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from .constants import (
+from ..constants import (
     BASE_URL,
     CAMP_CATEGORY_IDS,
     CATALOG_PATH,
@@ -16,8 +16,8 @@ from .constants import (
     NON_GROUP_EQUIPMENT,
     USER_AGENT,
 )
-from .models import Map, Park
-from .ports import ApiError, RateLimited
+from ..domain.models import Map, Park
+from ..domain.ports import ApiError, RateLimited
 
 
 def _localized_name(loc: dict) -> str:

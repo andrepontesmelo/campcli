@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from urllib.parse import urlencode
 
-from .constants import BASE_URL, NON_GROUP_EQUIPMENT
+from ..constants import BASE_URL, NON_GROUP_EQUIPMENT
 
 
 def quote_url(

@@ -1,7 +1,7 @@
 """Blocklist management — thin orchestration over BlockedParkRepo + park resolution."""
 from .catalog import resolve_park
-from .models import BlockedPark
-from .ports import BCParksApi, BlockedParkRepo, Clock
+from ..domain.models import BlockedPark
+from ..domain.ports import BCParksApi, BlockedParkRepo, Clock
 
 
 def add(

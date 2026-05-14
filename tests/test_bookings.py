@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from campcli import bookings
+from campcli.application import bookings
 
 
 class TestBookingsAdd:

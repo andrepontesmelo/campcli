@@ -1,9 +1,9 @@
 """Test availability filtering fan-out — proves BCParksApi seam pays off."""
 from datetime import date
 
-from campcli.availability import check_map, check_park
+from campcli.application.availability import check_map, check_park
 from campcli.constants import AVAILABILITY_AVAILABLE, AVAILABILITY_RESERVED
-from campcli.models import AvailableSite, Map, Park
+from campcli.domain.models import AvailableSite, Map, Park
 
 
 class TestCheckMap:
