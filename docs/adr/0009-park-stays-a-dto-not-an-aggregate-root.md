@@ -1,0 +1,5 @@
+# Park stays a DTO, not an aggregate-root
+
+A refactoring candidate proposed promoting `Park` (`src/campcli/models.py`) from a plain pydantic record to an aggregate-root with `park.maps(api)` and `park.availability(api, window)` methods. It was rejected.
+
+`Park` is reference data — `park_id`, `name`, `region` — with no invariants, no state transitions, and no consistency boundary, so none of the three conditions that justify a DDD aggregate-root apply. The availability functions (`check_park`, `check_map` in `availability.py`) already take a `Park` as their first argument; turning them into methods is pure syntactic sugar that moves no behaviour and concentrates no complexity — it fails the depth test. It would also force `models.py` to import `BCParksApi`, `Map`, `AvailableSite` and `availability.py`, creating a circular import. `Park` being used by both `catalog.py` (lookup) and `availability.py` (queries) is normal layering — an entity reused across Application modules, not a "scattered" smell.
