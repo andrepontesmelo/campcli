@@ -204,6 +204,47 @@ def _render_by_weekend(matches: list[WeekendMatch], drive_cache: dict, with_urls
     return "\n".join(out).rstrip()
 
 
+def _weeks_label(days: int | None, suffix: str) -> str:
+    if days is None:
+        return f"  no booking {suffix}"
+    if days == 0:
+        return f"  same day as a booking ({suffix})"
+    weeks = days / 7.0
+    if weeks >= 1:
+        return f"  {weeks:.1f} weeks {suffix}"
+    return f"  {days} days {suffix}"
+
+
+def render_match_message(
+    m: WeekendMatch,
+    *,
+    prev_gap_days: int | None,
+    next_gap_days: int | None,
+    drive_cache: dict,
+) -> str:
+    drive = drive_cache.get(m.park_id, {}).get("hours")
+    drive_str = f"  ({drive:.1f}h)" if drive is not None else ""
+    fee = f"${m.fee_per_night:.0f}/night" if m.fee_per_night is not None else "$?/night"
+    spots = "spot" if m.available_count == 1 else "spots"
+    url = quote_url(park_id=m.park_id, map_id=m.map_id, start=m.start_date, nights=m.nights)
+    lines = [
+        f"\U0001f3d5  {m.park_name}{drive_str}",
+        f"   {m.map_name}",
+        f"   {m.start_date.strftime('%a %b %d')} \u2192 {m.end_date.strftime('%a %b %d')}  ({m.nights}n)  {fee}",
+        f"   {m.available_count} {spots}",
+    ]
+    holiday = nearest_holiday(m.start_date, m.end_date)
+    if holiday is not None:
+        h_date, h_name = holiday
+        lines.append(f"   \U0001f389 {h_name} ({h_date.strftime('%a %b %d')})")
+    lines.extend([
+        _weeks_label(prev_gap_days, "before nearest booking"),
+        _weeks_label(next_gap_days, "after nearest booking"),
+        f"   {url}",
+    ])
+    return "\n".join(lines)
+
+
 def render_search_results(
     matches: list[WeekendMatch],
     group_by: str = "weekend",

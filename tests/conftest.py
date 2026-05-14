@@ -3,10 +3,10 @@ from datetime import date
 import pytest
 
 from campcli.models import Map, Park
-from campcli.ports import BCParksApi
+from campcli.ports import BCParksApi, Telegram, TelegramUpdate
 
 
-class FakeBCParksApi(BCParksApi):
+class FakeBCParksApi:
     def __init__(self, parks: list[Park] | None = None):
         self._parks = parks or [
             Park(park_id=1, name="Bowron Lake", region="Cariboo"),
@@ -28,9 +28,32 @@ class FakeBCParksApi(BCParksApi):
         return {}
 
 
+class FakeTelegram:
+    def __init__(self):
+        self.sent: list[str] = []
+        self.canned_updates: list[TelegramUpdate] = []
+
+    def send(self, text: str) -> None:
+        self.sent.append(text)
+
+    def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
+        out, self.canned_updates = self.canned_updates, []
+        return out
+
+
+# Static assertions: fakes satisfy their Protocols.
+_: BCParksApi = FakeBCParksApi()
+_: Telegram = FakeTelegram()
+
+
 @pytest.fixture
 def fake_api():
     return FakeBCParksApi()
+
+
+@pytest.fixture
+def fake_telegram():
+    return FakeTelegram()
 
 
 @pytest.fixture
@@ -39,3 +62,9 @@ def tmp_db(monkeypatch, tmp_path):
     monkeypatch.setattr("campcli.store.CONFIG_DIR", tmp_path)
     monkeypatch.setattr("campcli.store.DB_PATH", db_path)
     return db_path
+
+
+@pytest.fixture
+def poller(tmp_db, fake_api, fake_telegram):
+    from campcli.poller import Poller
+    return Poller(api=fake_api, telegram=fake_telegram)

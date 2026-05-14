@@ -8,6 +8,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Protocol
 
+from pydantic import BaseModel
+
 from .models import Map, Park
 
 
@@ -49,3 +51,25 @@ class BCParksApi(Protocol):
 
     def resource_details(self, *, park_id: int, map_id: int) -> Any:
         """Fetch map/resource details for fee extraction."""
+
+
+# ----- Telegram port ---------------------------------------------------------
+
+class TelegramUpdate(BaseModel):
+    update_id: int
+    chat_id: str
+    text: str
+
+
+class Telegram(Protocol):
+    """Transport for Telegram bot I/O.
+
+    All methods may raise arbitrary network exceptions. Implementations are
+    responsible for JSON parsing and chat_id filtering.
+    """
+
+    def send(self, text: str) -> None:
+        """Post a message to the configured chat."""
+
+    def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
+        """Short-poll Telegram for incoming commands. Returns [] on error."""
