@@ -12,6 +12,7 @@ from typing import Callable
 from . import catalog
 from .availability import check_map
 from .constants import DEFAULT_PROFILE
+from .drive_times import DriveTimes
 from .models import Park, WeekendMatch
 from .ports import BCParksApi
 from .pricing import fee_per_night
@@ -39,6 +40,7 @@ def run(
     api: BCParksApi,
     profile: dict,
     *,
+    drive_times: DriveTimes,
     today: date | None = None,
     limit_parks: int | None = None,
     progress: Callable[[str], None] | None = None,
@@ -46,7 +48,9 @@ def run(
 ) -> list[WeekendMatch]:
     today = today or date.today()
     windows = expand_windows(today, profile)
-    parks = catalog.list_parks_filtered(api, max_hours=profile["max_drive_hours"])
+    parks = catalog.list_parks_filtered(
+        api, drive_times=drive_times, max_hours=profile["max_drive_hours"]
+    )
     if limit_parks is not None:
         parks = parks[:limit_parks]
 
