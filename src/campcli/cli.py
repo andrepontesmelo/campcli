@@ -2,18 +2,27 @@
 from __future__ import annotations
 
 import os
+import re
 import webbrowser
-from datetime import date, timedelta
+from contextlib import contextmanager
+from datetime import date
 
 import typer
 
-import re
-
+from . import bookings
+from . import blocked
+from . import catalog
 from . import daemon as daemon_svc
 from . import format as fmt
+from . import search
 from . import store
 from . import watches as watch_svc
-from .drive_times import load_cache as load_drive_cache
+from .api import BCParksClient
+from .availability import check_park
+from .booking import quote_url
+from .constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH
+from .drive_times import build_cache as build_drive_cache
+from .ports import ApiError, RateLimited
 
 
 _DURATION_RE = re.compile(
@@ -23,11 +32,9 @@ _DURATION_RE = re.compile(
 
 
 def _parse_hours(text: str) -> float:
-    """Parse '2h30m', '90m', '1.5h', '3h', '45' (bare number = hours)."""
     s = text.strip()
     if not s:
         raise ValueError("empty duration")
-    # Bare number → hours.
     try:
         return float(s)
     except ValueError:
@@ -38,15 +45,50 @@ def _parse_hours(text: str) -> float:
     h = float(m.group(1) or 0)
     minutes = float(m.group(2) or 0)
     return h + minutes / 60.0
-from .api import BCParksClient
-from .availability import check_park
-from .booking import quote_url
-from .catalog import find_park, resolve_park
-from .constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DEFAULT_PROFILE, DRIVE_TIMES_PATH
-from .ports import ApiError, RateLimited
-from .drive_times import build_cache as build_drive_cache
-from .models import Booking
-from .search import run as run_search
+
+
+def _parse_hours_or_exit(text: str | None) -> float | None:
+    if text is None:
+        return None
+    try:
+        return _parse_hours(text)
+    except ValueError as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(code=1) from e
+
+
+def _parse_date_or_exit(text: str) -> date:
+    try:
+        return date.fromisoformat(text)
+    except ValueError as e:
+        typer.echo(f"error: invalid date {text!r}", err=True)
+        raise typer.Exit(code=1) from e
+
+
+def _exit_for(err: Exception) -> typer.Exit:
+    if isinstance(err, RateLimited):
+        typer.echo(f"rate-limited: {err}", err=True)
+        return typer.Exit(code=4)
+    if isinstance(err, ApiError):
+        typer.echo(f"upstream error: {err}", err=True)
+        return typer.Exit(code=5)
+    if isinstance(err, ValueError):
+        typer.echo(f"error: {err}", err=True)
+        return typer.Exit(code=2)
+    typer.echo(f"error: {err}", err=True)
+    return typer.Exit(code=1)
+
+
+@contextmanager
+def api_call():
+    try:
+        with BCParksClient() as api:
+            yield api
+    except typer.Exit:
+        raise
+    except Exception as e:
+        raise _exit_for(e) from e
+
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 parks_app = typer.Typer(no_args_is_help=True, help="Discover parks and sub-areas (maps).")
@@ -63,17 +105,6 @@ app.add_typer(bookings_app, name="bookings")
 app.add_typer(blocked_app, name="blocked")
 
 
-def _exit_for(err: Exception) -> typer.Exit:
-    if isinstance(err, RateLimited):
-        typer.echo(f"rate-limited: {err}", err=True)
-        return typer.Exit(code=4)
-    if isinstance(err, ApiError):
-        typer.echo(f"upstream error: {err}", err=True)
-        return typer.Exit(code=5)
-    typer.echo(f"error: {err}", err=True)
-    return typer.Exit(code=1)
-
-
 # ----- parks -----------------------------------------------------------------
 
 @parks_app.command("list")
@@ -84,26 +115,9 @@ def parks_list(
         help="Max drive time. Accepts '2h30m', '90m', '1.5h', or a bare number (hours).",
     ),
 ) -> None:
-    """List BC Parks campgrounds, sorted by drive time. Filter by name or max distance."""
-    try:
-        with BCParksClient() as client:
-            parks = client.list_parks()
-    except Exception as e:
-        raise _exit_for(e) from e
-    if search:
-        q = search.lower()
-        parks = [p for p in parks if q in p.name.lower()]
-    if distance:
-        try:
-            max_hours = _parse_hours(distance)
-        except ValueError as e:
-            typer.echo(f"error: {e}", err=True)
-            raise typer.Exit(code=1) from e
-        cache = load_drive_cache()
-        parks = [
-            p for p in parks
-            if (h := cache.get(p.park_id, {}).get("hours")) is not None and h <= max_hours
-        ]
+    max_hours = _parse_hours_or_exit(distance)
+    with api_call() as api:
+        parks = catalog.list_parks_filtered(api, search=search, max_hours=max_hours)
     typer.echo(fmt.render_parks(parks))
 
 
@@ -111,17 +125,8 @@ def parks_list(
 def parks_drive_times(
     refresh: bool = typer.Option(False, "--refresh", help="Re-geocode and re-route every park."),
 ) -> None:
-    """One-off: geocode each park and compute drive hours from Coquitlam.
-
-    Uses Nominatim (OSM) and OSRM public servers — free, no API key. Runs
-    sequentially at ~1 req/sec; ~3-4 minutes for the full catalog. Results
-    persist to ~/.campcli/drive_times.json and are read by `parks list`.
-    """
-    try:
-        with BCParksClient() as client:
-            parks = client.list_parks()
-    except Exception as e:
-        raise _exit_for(e) from e
+    with api_call() as api:
+        parks = api.list_parks()
 
     def progress(i: int, n: int, name: str, status: str) -> None:
         typer.echo(f"  [{i}/{n}] {name}: {status}")
@@ -133,19 +138,13 @@ def parks_drive_times(
 
 @parks_app.command("show")
 def parks_show(park_id: int = typer.Argument(...)) -> None:
-    """Show a park and its maps (sub-areas)."""
-    try:
-        with BCParksClient() as client:
-            parks = client.list_parks()
-            park = find_park(parks, park_id)
-            if park is None:
-                typer.echo(f"park {park_id} not found", err=True)
-                raise typer.Exit(code=2)
-            maps = client.list_maps(park_id)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        raise _exit_for(e) from e
+    with api_call() as api:
+        parks = api.list_parks()
+        park = catalog.find_park(parks, park_id)
+        if park is None:
+            typer.echo(f"park {park_id} not found", err=True)
+            raise typer.Exit(code=2)
+        maps = api.list_maps(park_id)
     typer.echo(fmt.render_park_detail(park, maps))
 
 
@@ -159,20 +158,14 @@ def check(
     party_size: int = typer.Option(1, "--party-size"),
     map_id: int | None = typer.Option(None, "--map", help="Limit to one map (sub-area)."),
 ) -> None:
-    """Check current availability for a park over a date range."""
-    start_d = date.fromisoformat(start)
-    try:
-        with BCParksClient() as client:
-            parks = client.list_parks()
-            p = find_park(parks, park)
-            if p is None:
-                typer.echo(f"park {park} not found", err=True)
-                raise typer.Exit(code=2)
-            sites = check_park(client, p, start_d, nights, party_size, map_filter=map_id)
-    except typer.Exit:
-        raise
-    except Exception as e:
-        raise _exit_for(e) from e
+    start_d = _parse_date_or_exit(start)
+    with api_call() as api:
+        parks = api.list_parks()
+        p = catalog.find_park(parks, park)
+        if p is None:
+            typer.echo(f"park {park} not found", err=True)
+            raise typer.Exit(code=2)
+        sites = check_park(api, p, start_d, nights, party_size, map_filter=map_id)
     typer.echo(fmt.render_available_list(sites))
     if not sites:
         raise typer.Exit(code=3)
@@ -197,28 +190,16 @@ def search_cmd(
     ),
     limit_parks: int | None = typer.Option(None, "--limit-parks", hidden=True),
 ) -> None:
-    """Find campsites matching your profile (currently hardcoded: weekends, 4h drive, 3 months)."""
     if group_by not in ("weekend", "park"):
         typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
         raise typer.Exit(code=1)
-    profile = dict(DEFAULT_PROFILE)
-    if months is not None:
-        profile["horizon_months"] = months
-    if distance is not None:
-        try:
-            profile["max_drive_hours"] = _parse_hours(distance)
-        except ValueError as e:
-            typer.echo(f"error: {e}", err=True)
-            raise typer.Exit(code=1) from e
+    profile = search.build_profile(months=months, max_hours=_parse_hours_or_exit(distance))
 
     def progress(msg: str) -> None:
         typer.echo(msg, err=True)
 
-    try:
-        with BCParksClient() as client:
-            matches = run_search(client, profile, limit_parks=limit_parks, progress=progress)
-    except Exception as e:
-        raise _exit_for(e) from e
+    with api_call() as api:
+        matches = search.run(api, profile, limit_parks=limit_parks, progress=progress)
     typer.echo(fmt.render_search_results(matches, group_by=group_by, with_urls=with_urls))
     if not matches:
         raise typer.Exit(code=3)
@@ -234,20 +215,17 @@ def watch_add(
     party_size: int = typer.Option(1, "--party-size"),
     label: str | None = typer.Option(None, "--label"),
 ) -> None:
-    """Persist a watch. Use `watch run` to scan."""
-    w = watch_svc.add(park, date.fromisoformat(start), nights, party_size, label)
+    w = watch_svc.add(park, _parse_date_or_exit(start), nights, party_size, label)
     typer.echo(fmt.render_watch(w))
 
 
 @watch_app.command("list")
 def watch_list() -> None:
-    """List stored watches."""
     typer.echo(fmt.render_watches(watch_svc.list_all()))
 
 
 @watch_app.command("rm")
 def watch_rm(watch_id: int = typer.Argument(...)) -> None:
-    """Remove a watch by id."""
     if not watch_svc.remove(watch_id):
         typer.echo(f"watch {watch_id} not found", err=True)
         raise typer.Exit(code=2)
@@ -258,12 +236,8 @@ def watch_rm(watch_id: int = typer.Argument(...)) -> None:
 def watch_run(
     watch_id: int | None = typer.Option(None, "--watch-id"),
 ) -> None:
-    """Scan all watches (or one) once. Prints currently-available sites."""
-    try:
-        with BCParksClient() as client:
-            results = watch_svc.run_all(client, watch_id=watch_id)
-    except Exception as e:
-        raise _exit_for(e) from e
+    with api_call() as api:
+        results = watch_svc.run_all(api, watch_id=watch_id)
     if not results:
         typer.echo("no watches" if watch_id is None else f"watch {watch_id} not found")
         raise typer.Exit(code=2 if watch_id is not None else 0)
@@ -290,11 +264,11 @@ def book_open(
     nights: int = typer.Option(..., "--nights", "-n"),
     party_size: int = typer.Option(1, "--party-size"),
 ) -> None:
-    """Open the BC Parks booking deep-link in the default browser."""
+    start_d = _parse_date_or_exit(start)
     url = quote_url(
         park_id=park,
         map_id=map_id,
-        start=date.fromisoformat(start),
+        start=start_d,
         nights=nights,
         party_size=party_size,
     )
@@ -312,12 +286,12 @@ def book_quote(
     nights: int = typer.Option(..., "--nights", "-n"),
     party_size: int = typer.Option(1, "--party-size"),
 ) -> None:
-    """Print a deep-link URL into the BC Parks booking flow."""
+    start_d = _parse_date_or_exit(start)
     typer.echo(
         quote_url(
             park_id=park,
             map_id=map_id,
-            start=date.fromisoformat(start),
+            start=start_d,
             nights=nights,
             party_size=party_size,
         )
@@ -328,12 +302,8 @@ def book_quote(
 
 @catalog_app.command("refresh")
 def catalog_refresh() -> None:
-    """Force-refresh the on-disk park catalog cache."""
-    try:
-        with BCParksClient() as client:
-            parks = client.list_parks(refresh=True)
-    except Exception as e:
-        raise _exit_for(e) from e
+    with api_call() as api:
+        parks = api.list_parks(refresh=True)
     typer.echo(f"cached {len(parks)} parks at {CATALOG_PATH}")
 
 
@@ -341,7 +311,11 @@ def catalog_refresh() -> None:
 
 @app.command("doctor")
 def doctor() -> None:
-    """Verify API reachability and print config paths."""
+    """Verify API reachability and print config paths.
+
+    Adapter-aware: calls BCParksClient.list_resource_locations() off-Protocol.
+    Diagnostic tool, not Application code.
+    """
     typer.echo(f"config dir:  {CONFIG_DIR}")
     typer.echo(f"db:          {DB_PATH}  (exists={DB_PATH.exists()})")
     typer.echo(f"catalog:     {CATALOG_PATH}  (exists={CATALOG_PATH.exists()})")
@@ -357,18 +331,6 @@ def doctor() -> None:
 
 # ----- bookings --------------------------------------------------------------
 
-def _render_booking(b: Booking) -> str:
-    site = f" #{b.site_name}" if b.site_name else ""
-    map_part = f" — {b.map_name}" if b.map_name else ""
-    fee = f" ${b.fee:.2f}" if b.fee is not None else ""
-    party = f" party={b.party_size}" if b.party_size is not None else ""
-    notes = f"  ({b.notes})" if b.notes else ""
-    return (
-        f"#{b.id}  {b.park_name}{map_part}{site}  "
-        f"{b.start_date.isoformat()} → {b.end_date.isoformat()}{fee}{party}{notes}"
-    )
-
-
 @bookings_app.command("list")
 def bookings_list() -> None:
     rows = store.list_bookings()
@@ -376,7 +338,7 @@ def bookings_list() -> None:
         typer.echo("no bookings")
         return
     for b in rows:
-        typer.echo(_render_booking(b))
+        typer.echo(fmt.render_booking(b))
 
 
 @bookings_app.command("add")
@@ -390,29 +352,14 @@ def bookings_add(
     fee: float | None = typer.Option(None, "--fee"),
     notes: str | None = typer.Option(None, "--notes"),
 ) -> None:
-    """Record a confirmed booking. Used to suppress notifications for adjacent weekends."""
-    try:
-        with BCParksClient() as client:
-            p = resolve_park(client, park)
-    except ValueError as e:
-        typer.echo(f"error: {e}", err=True)
-        raise typer.Exit(code=2) from e
-    except Exception as e:
-        raise _exit_for(e) from e
-    start_d = date.fromisoformat(start)
-    b = Booking(
-        park_id=p.park_id,
-        park_name=p.name,
-        map_name=map_name,
-        site_name=site,
-        start_date=start_d,
-        end_date=start_d + timedelta(days=nights),
-        party_size=party,
-        fee=fee,
-        notes=notes,
-    )
-    saved = store.add_booking(b)
-    typer.echo(_render_booking(saved))
+    start_d = _parse_date_or_exit(start)
+    with api_call() as api:
+        saved = bookings.add(
+            api, park_query=park, start=start_d, nights=nights,
+            map_name=map_name, site=site,
+            party_size=party, fee=fee, notes=notes,
+        )
+    typer.echo(fmt.render_booking(saved))
 
 
 @bookings_app.command("rm")
@@ -437,34 +384,19 @@ def blocked_list() -> None:
 
 @blocked_app.command("add")
 def blocked_add(park: str = typer.Argument(..., help="Park name (substring or exact).")) -> None:
-    try:
-        with BCParksClient() as client:
-            p = resolve_park(client, park)
-    except ValueError as e:
-        typer.echo(f"error: {e}", err=True)
-        raise typer.Exit(code=2) from e
-    except Exception as e:
-        raise _exit_for(e) from e
-    bp = store.add_blocked_park(p.park_id, p.name)
+    with api_call() as api:
+        bp = blocked.add(api, park)
     typer.echo(f"blocked: {bp.park_name} (id={bp.park_id})")
 
 
 @blocked_app.command("rm")
 def blocked_rm(park: str = typer.Argument(..., help="Park name or numeric id.")) -> None:
-    if park.isdigit():
-        park_id = int(park)
-    else:
-        try:
-            with BCParksClient() as client:
-                p = resolve_park(client, park)
-        except ValueError as e:
-            typer.echo(f"error: {e}", err=True)
-            raise typer.Exit(code=2) from e
-        park_id = p.park_id
-    if not store.remove_blocked_park(park_id):
-        typer.echo(f"park {park_id} not in blocklist", err=True)
+    with api_call() as api:
+        removed = blocked.remove(api, park)
+    if not removed:
+        typer.echo(f"park {park} not in blocklist", err=True)
         raise typer.Exit(code=2)
-    typer.echo(f"unblocked {park_id}")
+    typer.echo(f"unblocked {park}")
 
 
 # ----- daemon ----------------------------------------------------------------
@@ -473,11 +405,6 @@ def blocked_rm(park: str = typer.Argument(..., help="Park name or numeric id."))
 def daemon_cmd(
     interval: float = typer.Option(1.0, "--interval", help="Seconds to sleep between polls."),
 ) -> None:
-    """Long-running poller. Sends a Telegram message ASAP for each new match.
-
-    Requires env vars TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.
-    Suppresses matches in blocked parks and within 14 days of an existing booking.
-    """
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
