@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.scripts]
-campcli = "campcli.cli:app"
+campcli = "campcli.composition.cli:app"
 
 [build-system]
 requires = ["hatchling"]

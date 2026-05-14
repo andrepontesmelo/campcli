@@ -7,7 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Iterator
 
-from .models import BlockedPark, Booking, Watch
+from ..domain.models import BlockedPark, Booking, Watch
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS watches (

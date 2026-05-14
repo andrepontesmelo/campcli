@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .models import Booking, WeekendMatch
+from ..domain.models import Booking, WeekendMatch
 
 REST_DAYS = 14  # min |Δstart_date| between trips (1 weekend off in between)
 

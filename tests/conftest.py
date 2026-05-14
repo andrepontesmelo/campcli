@@ -2,8 +2,8 @@ from datetime import date, datetime
 
 import pytest
 
-from campcli.models import Map, Park
-from campcli.ports import BCParksApi, Telegram, TelegramUpdate
+from campcli.domain.models import Map, Park
+from campcli.domain.ports import BCParksApi, Telegram, TelegramUpdate
 
 
 class FakeBCParksApi:
@@ -55,11 +55,11 @@ _telegram: Telegram = FakeTelegram()
 import shutil
 import tempfile
 from pathlib import Path
-from campcli.clock import SystemClock
-from campcli.ports import (
+from campcli.infrastructure.clock import SystemClock
+from campcli.domain.ports import (
     BlockedParkRepo, BookingRepo, Clock, SettingsRepo, WatchRepo,
 )
-from campcli.store import SqliteStore
+from campcli.infrastructure.store import SqliteStore
 __clock_static: Clock = FrozenClock(datetime.now())
 __sysclock_static: Clock = SystemClock()
 __d = Path(tempfile.mkdtemp())
@@ -83,7 +83,7 @@ def fake_telegram():
 
 @pytest.fixture
 def store(tmp_path):
-    from campcli.store import SqliteStore
+    from campcli.infrastructure.store import SqliteStore
     return SqliteStore(tmp_path / "test.db")
 
 
@@ -94,8 +94,8 @@ def clock():
 
 @pytest.fixture
 def poller(store, clock, fake_api, fake_telegram):
-    from campcli.drive_times import DriveTimes
-    from campcli.poller import Poller
+    from campcli.application.drive_times import DriveTimes
+    from campcli.application.poller import Poller
     return Poller(
         api=fake_api, telegram=fake_telegram,
         booking_repo=store, blocked_repo=store,

@@ -1,7 +1,7 @@
 from datetime import date
 
-from campcli.models import WeekendMatch
-from campcli.ports import TelegramUpdate
+from campcli.domain.models import WeekendMatch
+from campcli.domain.ports import TelegramUpdate
 
 
 class TestPollerStart:
@@ -53,7 +53,7 @@ class TestPollerDedup:
 
 class TestPollerBlocked:
     def test_blocked_park_suppresses_notification(self, poller, fake_telegram, store):
-        from campcli.models import BlockedPark
+        from campcli.domain.models import BlockedPark
         from datetime import datetime
         store.add_blocked(BlockedPark(park_id=1, park_name="Bowron Lake", added_at=datetime(2026, 1, 1, 12, 0, 0)))
         m = WeekendMatch(

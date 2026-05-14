@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from campcli.clock import SystemClock
+from campcli.infrastructure.clock import SystemClock
 
 
 class TestSystemClock:

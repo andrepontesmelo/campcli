@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from campcli import blocked
-from campcli.models import BlockedPark
+from campcli.application import blocked
+from campcli.domain.models import BlockedPark
 
 
 class TestBlockedRemove:

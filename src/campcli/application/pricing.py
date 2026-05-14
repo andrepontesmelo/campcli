@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .constants import PEAK_START_MONTH_DAY
+from ..constants import PEAK_START_MONTH_DAY
 
 
 SHOULDER_FEE = 31.0

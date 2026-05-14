@@ -2,8 +2,8 @@
 from datetime import date, timedelta
 
 from .catalog import resolve_park
-from .models import Booking
-from .ports import BCParksApi, BookingRepo, Clock
+from ..domain.models import Booking
+from ..domain.ports import BCParksApi, BookingRepo, Clock
 
 
 def add(

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import httpx
 
-from .ports import Telegram, TelegramUpdate
+from ..domain.ports import Telegram, TelegramUpdate
 
 
 TG_MAX_LEN = 4096

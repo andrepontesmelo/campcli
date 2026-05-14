@@ -1,8 +1,8 @@
 from datetime import date, datetime
 from pathlib import Path
 
-from campcli.models import BlockedPark, Booking, Watch
-from campcli.store import SqliteStore
+from campcli.domain.models import BlockedPark, Booking, Watch
+from campcli.infrastructure.store import SqliteStore
 
 
 class TestSqliteStore:

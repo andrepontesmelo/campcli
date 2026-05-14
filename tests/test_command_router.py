@@ -1,4 +1,4 @@
-from campcli import command_router
+from campcli.application import command_router
 
 
 class TestDispatch:

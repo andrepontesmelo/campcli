@@ -6,8 +6,8 @@ lookup logic that operates on already-resolved Domain objects.
 from __future__ import annotations
 
 from .drive_times import DriveTimes
-from .models import Park
-from .ports import BCParksApi
+from ..domain.models import Park
+from ..domain.ports import BCParksApi
 
 
 def find_park(parks: list[Park], park_id: int) -> Park | None:

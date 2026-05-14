@@ -5,8 +5,8 @@ from datetime import date
 
 from .availability import check_park
 from .catalog import find_park
-from .models import AvailableSite, Park, Watch
-from .ports import BCParksApi, Clock, WatchRepo
+from ..domain.models import AvailableSite, Park, Watch
+from ..domain.ports import BCParksApi, Clock, WatchRepo
 
 
 def add(
