@@ -19,3 +19,11 @@ build/
 .vscode/
 .DS_Store
 *.swp
+
+# Local Claude Code config (may contain secrets)
+.claude/
+**/.claude/settings.local.json
+
+# Secrets / env
+*.env
+.env
