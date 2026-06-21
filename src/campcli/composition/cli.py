@@ -215,10 +215,10 @@ def search_cmd(
         typer.echo(msg, err=True)
 
     with api_call() as api:
-        matches = search.run(
+        matches = list(search.run(
             api, profile, drive_times=drive_times,
             limit_parks=limit_parks, progress=progress,
-        )
+        ))
     typer.echo(fmt.render_search_results(
         matches, group_by=group_by, with_urls=with_urls, drive_times=drive_times,
     ))

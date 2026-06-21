@@ -6,7 +6,6 @@ import sys
 from . import command_router
 from ..constants import DEFAULT_PROFILE
 from .drive_times import DriveTimes
-from ..domain.models import WeekendMatch
 from ..domain.ports import BCParksApi, BlockedParkRepo, BookingRepo, Clock, SettingsRepo, Telegram
 from .search import run as run_search
 from .search_notifier import SearchNotifier
@@ -55,16 +54,13 @@ class Poller:
             f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)})"
         )
 
-        def on_match(m: WeekendMatch) -> None:
-            self._notifier.notify(m)
-
-        run_search(
+        for match in run_search(
             self._api,
             self._profile,
             drive_times=self._drive_times,
             progress=self.log,
-            on_match=on_match,
-        )
+        ):
+            self._notifier.notify(match)
 
     def set_verbose(self, on: bool) -> None:
         self._verbose = on

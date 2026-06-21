@@ -64,4 +64,4 @@ class TestSearchNotifierBlocked:
         notifier.start_poll([], {1})
         notifier.notify(m)
         key = (m.park_id, m.map_id, m.start_date, m.nights)
-        assert key in notifier._seen
+        assert key in notifier._policy._seen

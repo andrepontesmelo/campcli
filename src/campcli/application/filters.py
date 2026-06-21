@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from ..domain.models import Booking, WeekendMatch
+from ..domain.models import Booking
 
 REST_DAYS = 14  # min |Δstart_date| between trips (1 weekend off in between)
 
@@ -44,14 +44,5 @@ def is_too_close(
     return any(abs((b.start_date - target).days) < rest_days for b in bookings)
 
 
-def should_notify(
-    match: WeekendMatch,
-    *,
-    bookings: list[Booking],
-    blocked_park_ids: set[int],
-) -> bool:
-    if match.park_id in blocked_park_ids:
-        return False
-    if is_too_close(match.start_date, bookings):
-        return False
-    return True
+# Notification policy (blocked + adjacency + dedup) now lives in
+# application/notification_policy.py; these stay as the pure rule primitives.

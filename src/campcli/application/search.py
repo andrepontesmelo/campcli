@@ -6,8 +6,8 @@ parks, and aggregates results into per-(park, map, weekend) matches.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
 from datetime import date, timedelta
-from typing import Callable
 
 from . import catalog
 from .availability import check_map
@@ -57,8 +57,13 @@ def run(
     today: date | None = None,
     limit_parks: int | None = None,
     progress: Callable[[str], None] | None = None,
-    on_match: Callable[[WeekendMatch], None] | None = None,
-) -> list[WeekendMatch]:
+) -> Iterator[WeekendMatch]:
+    """Yield WeekendMatches as they are found.
+
+    `progress` is an optional side-channel for scan status ("[3/120] Park").
+    Matches are streamed to the caller via the return value — the caller
+    decides what to do with each (notify, collect, render).
+    """
     today = today or date.today()
     windows = expand_windows(
         today, profile,
@@ -72,9 +77,8 @@ def run(
         parks = parks[:limit_parks]
 
     if not parks:
-        return []
+        return
 
-    matches: list[WeekendMatch] = []
     total = len(parks)
     for i, park in enumerate(parks, 1):
         if progress:
@@ -117,14 +121,7 @@ def run(
                     available_count=len(sites),
                     fee_per_night=fee,
                 )
-                matches.append(match)
-                if on_match:
-                    try:
-                        on_match(match)
-                    except Exception as e:
-                        if progress:
-                            progress(f"  ! on_match callback failed: {e}")
-    return matches
+                yield match
 
 
 def build_profile(
