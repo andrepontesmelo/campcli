@@ -1,10 +1,9 @@
 """Poller — Application service for daemon poll-and-notify loop."""
 from __future__ import annotations
 
-import sys
-
 from . import command_router
 from ..constants import DEFAULT_PROFILE
+from .daemon_log import DaemonLog
 from .drive_times import DriveTimes
 from ..domain.ports import BCParksApi, BlockedParkRepo, BookingRepo, Clock, SettingsRepo, Telegram
 from .search import run as run_search
@@ -34,8 +33,13 @@ class Poller:
         self._clock = clock
         self._drive_times = drive_times
         self._profile = profile or DEFAULT_PROFILE
-        self._verbose = (settings_repo.get_setting("verbose") or "") == "on"
+        verbose = (settings_repo.get_setting("verbose") or "") == "on"
+        self._log = DaemonLog(clock, telegram, verbose=verbose)
         self._update_offset: int | None = None
+
+    @property
+    def _verbose(self) -> bool:
+        return self._log.verbose
 
     def start(self) -> None:
         try:
@@ -63,17 +67,11 @@ class Poller:
             self._notifier.notify(match)
 
     def set_verbose(self, on: bool) -> None:
-        self._verbose = on
+        self._log.set_verbose(on)
         self._settings_repo.set_setting("verbose", "on" if on else "off")
 
     def log(self, msg: str) -> None:
-        line = f"[{self._clock.now().isoformat(timespec='seconds')}] {msg}"
-        print(line, file=sys.stderr, flush=True)
-        if self._verbose:
-            try:
-                self._telegram.send(line)
-            except Exception:
-                pass
+        self._log.log(msg)
 
     def _handle_commands(self) -> None:
         updates = self._telegram.poll_updates(offset=self._update_offset)
