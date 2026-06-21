@@ -41,6 +41,18 @@ class FakeTelegram:
         return out
 
 
+class FakeSearchNotifier:
+    def __init__(self):
+        self.start_poll_calls: list[tuple[list, set[int]]] = []
+        self.notify_calls: list = []
+
+    def start_poll(self, bookings, blocked_park_ids):
+        self.start_poll_calls.append((bookings, blocked_park_ids))
+
+    def notify(self, match):
+        self.notify_calls.append(match)
+
+
 class FrozenClock:
     def __init__(self, value: datetime) -> None:
         self._value = value
@@ -93,11 +105,17 @@ def clock():
 
 
 @pytest.fixture
-def poller(store, clock, fake_api, fake_telegram):
+def fake_notifier():
+    return FakeSearchNotifier()
+
+
+@pytest.fixture
+def poller(store, clock, fake_api, fake_telegram, fake_notifier):
     from campcli.application.drive_times import DriveTimes
     from campcli.application.poller import Poller
     return Poller(
         api=fake_api, telegram=fake_telegram,
+        notifier=fake_notifier,
         booking_repo=store, blocked_repo=store,
         settings_repo=store, clock=clock,
         drive_times=DriveTimes.empty(),

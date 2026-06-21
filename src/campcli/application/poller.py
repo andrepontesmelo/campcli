@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import sys
-from datetime import date
 
-from . import command_router, filters
+from . import command_router
 from ..constants import DEFAULT_PROFILE
 from .drive_times import DriveTimes
-from ..presentation.format import render_match_message
-from ..domain.models import Booking, WeekendMatch
+from ..domain.models import WeekendMatch
 from ..domain.ports import BCParksApi, BlockedParkRepo, BookingRepo, Clock, SettingsRepo, Telegram
 from .search import run as run_search
+from .search_notifier import SearchNotifier
 
 
 class Poller:
@@ -19,6 +18,7 @@ class Poller:
         *,
         api: BCParksApi,
         telegram: Telegram,
+        notifier: SearchNotifier,
         booking_repo: BookingRepo,
         blocked_repo: BlockedParkRepo,
         settings_repo: SettingsRepo,
@@ -28,13 +28,13 @@ class Poller:
     ) -> None:
         self._api = api
         self._telegram = telegram
+        self._notifier = notifier
         self._booking_repo = booking_repo
         self._blocked_repo = blocked_repo
         self._settings_repo = settings_repo
         self._clock = clock
         self._drive_times = drive_times
         self._profile = profile or DEFAULT_PROFILE
-        self._seen: set[tuple[int, int, date, int]] = set()
         self._verbose = (settings_repo.get_setting("verbose") or "") == "on"
         self._update_offset: int | None = None
 
@@ -50,13 +50,13 @@ class Poller:
         self._handle_commands()
         bookings = self._booking_repo.list_bookings()
         blocked_ids = {b.park_id for b in self._blocked_repo.list_blocked()}
+        self._notifier.start_poll(bookings, blocked_ids)
         self.log(
-            f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)}, "
-            f"seen={len(self._seen)})"
+            f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)})"
         )
 
         def on_match(m: WeekendMatch) -> None:
-            self._dispatch_match(m, bookings, blocked_ids)
+            self._notifier.notify(m)
 
         run_search(
             self._api,
@@ -88,29 +88,4 @@ class Poller:
             if reply:
                 self._telegram.send(reply)
 
-    def _dispatch_match(
-        self,
-        m: WeekendMatch,
-        bookings: list[Booking],
-        blocked_ids: set[int],
-    ) -> None:
-        key = (m.park_id, m.map_id, m.start_date, m.nights)
-        if key in self._seen:
-            return
-        if not filters.should_notify(m, bookings=bookings, blocked_park_ids=blocked_ids):
-            self._seen.add(key)
-            return
-        prev_gap, next_gap = filters.gap_days_to_nearest(m.start_date, bookings)
-        text = render_match_message(
-            m,
-            prev_gap_days=prev_gap,
-            next_gap_days=next_gap,
-            drive_times=self._drive_times,
-        )
-        try:
-            self._telegram.send(text)
-            self.log(f"notified: {m.park_name} {m.map_name} {m.start_date}")
-        except Exception as e:
-            self.log(f"telegram send failed: {e}")
-            return
-        self._seen.add(key)
+

@@ -134,3 +134,4 @@ class Telegram(Protocol):
 
     def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
         """Short-poll Telegram for incoming commands. Returns [] on error."""
+

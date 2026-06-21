@@ -1,6 +1,3 @@
-from datetime import date
-
-from campcli.domain.models import WeekendMatch
 from campcli.domain.ports import TelegramUpdate
 
 
@@ -38,30 +35,7 @@ class TestPollerCommands:
         assert poller._verbose is False
 
 
-class TestPollerDedup:
-    def test_same_match_dispatched_twice_sends_once(self, poller, fake_telegram):
-        m = WeekendMatch(
-            park_id=1, park_name="Bowron Lake", map_id=10, map_name="Main",
-            start_date=date(2026, 8, 15), end_date=date(2026, 8, 17),
-            nights=2, available_count=1,
-        )
-        poller._dispatch_match(m, [], set())
-        assert len(fake_telegram.sent) == 1
-        poller._dispatch_match(m, [], set())
-        assert len(fake_telegram.sent) == 1
-
-
-class TestPollerBlocked:
-    def test_blocked_park_suppresses_notification(self, poller, fake_telegram, store):
-        from campcli.domain.models import BlockedPark
-        from datetime import datetime
-        store.add_blocked(BlockedPark(park_id=1, park_name="Bowron Lake", added_at=datetime(2026, 1, 1, 12, 0, 0)))
-        m = WeekendMatch(
-            park_id=1, park_name="Bowron Lake", map_id=10, map_name="Main",
-            start_date=date(2026, 8, 15), end_date=date(2026, 8, 17),
-            nights=2, available_count=1,
-        )
-        poller._dispatch_match(m, [], {1})
-        assert len(fake_telegram.sent) == 0
-        key = (m.park_id, m.map_id, m.start_date, m.nights)
-        assert key in poller._seen
+class TestPollerNotificationWiring:
+    def test_tick_calls_start_poll(self, poller, fake_notifier):
+        poller.tick()
+        assert len(fake_notifier.start_poll_calls) == 1
