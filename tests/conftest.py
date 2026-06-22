@@ -89,23 +89,6 @@ class FrozenClock:
 # Static assertions: fakes satisfy their Protocols.
 _bcparks_api: BCParksApi = FakeBCParksApi()
 _telegram: Telegram = FakeTelegram()
-import shutil
-import tempfile
-from pathlib import Path
-from campcli.infrastructure.clock import SystemClock
-from campcli.domain.ports import (
-    BlockedParkRepo, BookingRepo, Clock, SettingsRepo, WatchRepo,
-)
-from campcli.infrastructure.store import SqliteStore
-__clock_static: Clock = FrozenClock(datetime.now())
-__sysclock_static: Clock = SystemClock()
-__d = Path(tempfile.mkdtemp())
-__s = SqliteStore(__d / "t.db")
-__wr: WatchRepo = __s
-__br: BookingRepo = __s
-__bpr: BlockedParkRepo = __s
-__sr: SettingsRepo = __s
-shutil.rmtree(__d, ignore_errors=True)
 
 
 @pytest.fixture

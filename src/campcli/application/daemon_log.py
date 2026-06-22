@@ -21,9 +21,8 @@ class DaemonLog:
         self._telegram = telegram
         self._verbose_chats: set[str] = verbose_chats or set()
 
-    @property
-    def verbose_chats(self) -> set[str]:
-        return self._verbose_chats
+    def set_verbose_chats(self, chats: set[str]) -> None:
+        self._verbose_chats = set(chats)
 
     def set_verbose(self, chat_id: str, on: bool) -> None:
         if on:

@@ -65,10 +65,9 @@ class TestPollerNotificationWiring:
         poller.tick()
         # No verbose state set
         assert store.get_setting("verbose:1") is None
-        # No startup message sent (no authorized users)
-        assert fake_telegram.sent == [] or all(
-            "Your Telegram ID is" in s for s in fake_telegram.sent
-        )
+        # Bot sends ID-revealing message to unauthorized user
+        assert len(fake_telegram.sent) >= 1
+        assert "Your Telegram ID is" in fake_telegram.sent[0]
 
     def test_last_seen_chat_tracking(self, poller, store, fake_telegram):
         poller._tg_allowed_ids = [1]

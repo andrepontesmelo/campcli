@@ -29,7 +29,8 @@ def test_verbose_mirrors_to_telegram():
     log = DaemonLog(FrozenClock(), tg, verbose_chats={"chat1"})
     log.log("scanning")
     assert len(tg.sent) == 1
-    assert tg.sent[0] == ("chat1", tg.sent[0][1])
+    assert tg.sent[0][0] == "chat1"
+    assert "[2026-08-15T09:00:00] scanning" in tg.sent[0][1]
 
 
 def test_set_verbose_adds_chat():

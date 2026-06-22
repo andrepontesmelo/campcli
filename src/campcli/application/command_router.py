@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..domain.ports import BotCommand, TelegramUpdate
+from .telegram_users import is_authorized, unauthorized_reply
 
 if TYPE_CHECKING:
     from .poller import Poller
@@ -72,14 +73,8 @@ def dispatch(
     Returns action dict or None for unknown/unhandled.
     """
     from_id = update.from_id
-    if from_id is not None and from_id not in tg_allowed_ids:
-        return {
-            "type": "reply",
-            "text": (
-                f"Your Telegram ID is {from_id}. "
-                f"Ask an admin to run: campcli telegram allow {from_id}"
-            ),
-        }
+    if from_id is not None and not is_authorized(from_id, tg_allowed_ids):
+        return {"type": "reply", "text": unauthorized_reply(from_id)}
 
     # Callback query dispatch
     if update.callback_query_id and update.callback_data:

@@ -108,7 +108,7 @@ class Poller:
         chats = build_verbose_chat_set(
             self._settings_repo, self._tg_allowed_ids
         )
-        self._log._verbose_chats = chats
+        self._log.set_verbose_chats(chats)
 
     def _get_chat_id_for_user(self, tg_id: int) -> str | None:
         return self._settings_repo.get_setting(f"chat:{tg_id}")
@@ -127,9 +127,14 @@ class Poller:
                 and upd.chat_id
                 and upd.from_id in self._tg_allowed_ids
             ):
-                self._settings_repo.set_setting(
-                    f"chat:{upd.from_id}", upd.chat_id
+                old = self._settings_repo.get_setting(
+                    f"chat:{upd.from_id}"
                 )
+                if old != upd.chat_id:
+                    self._settings_repo.set_setting(
+                        f"chat:{upd.from_id}", upd.chat_id
+                    )
+                    self._refresh_verbose_chats()
             result = command_router.dispatch(
                 upd, self, self._tg_allowed_ids
             )
