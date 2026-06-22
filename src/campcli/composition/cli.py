@@ -20,6 +20,7 @@ from ..infrastructure.api import BCParksClient
 from ..application.availability import check_park
 from ..application.booking_links import quote_url
 from ..infrastructure.clock import SystemClock
+from ..application.profile import Profile, load_profile
 from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH, max_bookable_start
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
@@ -208,15 +209,24 @@ def search_cmd(
     if group_by not in ("weekend", "park"):
         typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
         raise typer.Exit(code=1)
-    profile = search.build_profile(months=months, max_hours=_parse_hours_or_exit(distance))
     drive_times = load_drive_times()
 
     def progress(msg: str) -> None:
         typer.echo(msg, err=True)
 
     with api_call() as api:
+        profile = load_profile(api)
+        # CLI flags override profile values.
+        if months is not None:
+            profile.max_horizon_months = months
+        parsed_distance = _parse_hours_or_exit(distance)
+        if parsed_distance is not None:
+            profile.max_drive_hours = parsed_distance
+
+        allowed_ids = profile.allowed_park_ids or None
         matches = list(search.run(
             api, profile, drive_times=drive_times,
+            allowed_park_ids=allowed_ids,
             limit_parks=limit_parks, progress=progress,
         ))
     typer.echo(fmt.render_search_results(

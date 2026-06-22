@@ -1,15 +1,15 @@
 """NotificationPolicy: the single decision of whether a WeekendMatch notifies.
 
 Owns every suppression rule in one place — BlockedPark, booking-adjacency
-(REST_DAYS), and dedup — plus the booking-gap computation the message needs.
+(rest_days), and dedup — plus the booking-gap computation the message needs.
 Pure decision + in-memory dedup state; no I/O, no rendering.
 
 Sender flow:
     n = policy.decide(match)        # None -> suppressed (already recorded)
     if n: render(n) ; send ; policy.mark_sent(n)
 
-`decide` records suppressed matches as seen immediately, but a match cleared
-to send is only recorded once the caller confirms delivery via `mark_sent`,
+``decide`` records suppressed matches as seen immediately, but a match cleared
+to send is only recorded once the caller confirms delivery via ``mark_sent``,
 so a failed send is retried on the next poll.
 """
 from __future__ import annotations
@@ -33,10 +33,11 @@ class Notification:
 
 
 class NotificationPolicy:
-    def __init__(self) -> None:
+    def __init__(self, rest_days: int = 14) -> None:
         self._seen: set[_Key] = set()
         self._bookings: list[Booking] = []
         self._blocked_park_ids: set[int] = set()
+        self._rest_days = rest_days
 
     def update_context(
         self, bookings: list[Booking], blocked_park_ids: set[int]
@@ -53,13 +54,13 @@ class NotificationPolicy:
         """Return a Notification to send, or None if suppressed.
 
         Suppressed and already-seen matches return None. Suppressed matches are
-        recorded as seen here; a cleared match is recorded by `mark_sent`.
+        recorded as seen here; a cleared match is recorded by ``mark_sent``.
         """
         key = self._key(match)
         if key in self._seen:
             return None
         if match.park_id in self._blocked_park_ids or is_too_close(
-            match.start_date, self._bookings
+            match.start_date, self._bookings, rest_days=self._rest_days,
         ):
             self._seen.add(key)
             return None

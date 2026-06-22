@@ -48,6 +48,13 @@ class TestDecide:
         policy.update_context([make_booking(date(2026, 9, 1))], set())
         assert policy.decide(make_match()) is not None
 
+    def test_rest_days_zero_disables_suppression(self):
+        """When rest_days=0, a same-day booking does not suppress."""
+        policy = NotificationPolicy(rest_days=0)
+        # Same day as match start (Aug 15).
+        policy.update_context([make_booking(date(2026, 8, 15))], set())
+        assert policy.decide(make_match()) is not None
+
 
 class TestDedup:
     def test_cleared_match_only_sent_after_mark_sent(self):

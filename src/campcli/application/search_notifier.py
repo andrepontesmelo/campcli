@@ -20,11 +20,12 @@ class SearchNotifier:
         telegram: Telegram,
         drive_times: DriveTimes,
         log: Callable[[str], None],
+        rest_days: int = 14,
     ) -> None:
         self._telegram = telegram
         self._drive_times = drive_times
         self._log = log
-        self._policy = NotificationPolicy()
+        self._policy = NotificationPolicy(rest_days=rest_days)
 
     def start_poll(
         self,

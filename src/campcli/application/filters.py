@@ -9,8 +9,6 @@ from datetime import date
 
 from ..domain.models import Booking
 
-REST_DAYS = 14  # min |Δstart_date| between trips (1 weekend off in between)
-
 
 def gap_days_to_nearest(
     target: date, bookings: list[Booking]
@@ -38,7 +36,7 @@ def gap_days_to_nearest(
 
 
 def is_too_close(
-    target: date, bookings: list[Booking], rest_days: int = REST_DAYS
+    target: date, bookings: list[Booking], rest_days: int = 14
 ) -> bool:
     """True if any booking start is within `rest_days` of `target` (<, not <=)."""
     return any(abs((b.start_date - target).days) < rest_days for b in bookings)

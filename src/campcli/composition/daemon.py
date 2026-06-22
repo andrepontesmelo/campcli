@@ -10,6 +10,7 @@ from ..infrastructure.clock import SystemClock
 from ..constants import DB_PATH
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..application.poller import Poller
+from ..application.profile import Profile, load_profile
 from ..application.search_notifier import SearchNotifier
 from ..infrastructure.store import SqliteStore
 from ..infrastructure.telegram import HttpxTelegram
@@ -20,16 +21,19 @@ def run_forever(
     bot_token: str,
     chat_id: str,
     interval_secs: float = 1.0,
-    profile: dict | None = None,
+    profile: Profile | None = None,
 ) -> None:
     store = SqliteStore(DB_PATH)
     clock = SystemClock()
     drive_times = load_drive_times()
     with HttpxTelegram(token=bot_token, chat_id=chat_id) as telegram, BCParksClient() as api:
+        if profile is None:
+            profile = load_profile(api)
         notifier = SearchNotifier(
             telegram=telegram,
             drive_times=drive_times,
             log=lambda msg: print(f"[{clock.now().isoformat(timespec='seconds')}] {msg}", file=sys.stderr),
+            rest_days=profile.rest_days_between_bookings,
         )
         poller = Poller(
             api=api, telegram=telegram,

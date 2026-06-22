@@ -2,10 +2,17 @@
 from __future__ import annotations
 
 from . import command_router
-from ..constants import DEFAULT_PROFILE
 from .daemon_log import DaemonLog
 from .drive_times import DriveTimes
-from ..domain.ports import BCParksApi, BlockedParkRepo, BookingRepo, Clock, SettingsRepo, Telegram
+from ..domain.ports import (
+    BCParksApi,
+    BlockedParkRepo,
+    BookingRepo,
+    Clock,
+    SettingsRepo,
+    Telegram,
+)
+from .profile import Profile
 from .search import run as run_search
 from .search_notifier import SearchNotifier
 
@@ -22,7 +29,7 @@ class Poller:
         settings_repo: SettingsRepo,
         clock: Clock,
         drive_times: DriveTimes,
-        profile: dict | None = None,
+        profile: Profile | None = None,
     ) -> None:
         self._api = api
         self._telegram = telegram
@@ -32,7 +39,7 @@ class Poller:
         self._settings_repo = settings_repo
         self._clock = clock
         self._drive_times = drive_times
-        self._profile = profile or DEFAULT_PROFILE
+        self._profile = profile or Profile()
         verbose = (settings_repo.get_setting("verbose") or "") == "on"
         self._log = DaemonLog(clock, telegram, verbose=verbose)
         self._update_offset: int | None = None
@@ -58,10 +65,12 @@ class Poller:
             f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)})"
         )
 
+        allowed_ids = self._profile.allowed_park_ids or None
         for match in run_search(
             self._api,
             self._profile,
             drive_times=self._drive_times,
+            allowed_park_ids=allowed_ids,
             progress=self.log,
         ):
             self._notifier.notify(match)
@@ -81,5 +90,3 @@ class Poller:
             reply = command_router.dispatch(upd.text, self)
             if reply:
                 self._telegram.send(reply)
-
-

@@ -3,7 +3,6 @@
 Validated by the prior investigation in this directory (test-report.md).
 All IDs are large negative ints by GoingToCamp convention.
 """
-from calendar import FRIDAY, SATURDAY
 from datetime import date
 from pathlib import Path
 
@@ -30,13 +29,11 @@ CONFIG_DIR = Path.home() / ".campcli"
 DB_PATH = CONFIG_DIR / "state.db"
 CATALOG_PATH = CONFIG_DIR / "catalog.json"
 DRIVE_TIMES_PATH = CONFIG_DIR / "drive_times.json"
+PROFILE_PATH = CONFIG_DIR / "profile.json"
 
 # BC Parks system rule: reservations open only N months before start date.
 # Hard limit set by BC Parks — not user-configurable.
 BOOKING_WINDOW_MONTHS = 3
-
-# Personal minimum start date — ignore any booking starting before this.
-PERSONAL_MIN_START_DATE = date(2026, 7, 7)
 
 
 def max_bookable_start(today: date | None = None) -> date:
@@ -62,19 +59,6 @@ def max_bookable_start(today: date | None = None) -> date:
 # Home: 3310 Lancaster Ct, Coquitlam, BC
 HOME_LATLON = (49.2970917, -122.7658634)
 
-
-# Hardcoded user profile (will be configurable later).
-# Each pattern is (start_weekday, nights). `calendar.FRIDAY == 4`, `SATURDAY == 5`.
-DEFAULT_PROFILE = {
-    "name": "weekends",
-    "patterns": [
-        (FRIDAY, 2),    # Fri -> Sun (preferred)
-#        (FRIDAY, 1),    # Fri -> Sat
-#        (SATURDAY, 1),  # Sat -> Sun
-    ],
-    "horizon_months": 3,
-    "max_drive_hours": 3.0,
-}
 
 # Pricing seasons. Peak: Jun 15 through Labour Day (first Mon of September).
 # Outside that range counts as shoulder/off-season.
