@@ -1,9 +1,8 @@
 """DaemonLog — the daemon's log sink.
 
-Owns the one logging concern: every line goes to stderr, and when verbose is on
-it is also mirrored to Telegram. Verbose is the sink's own state, so the Poller
-no longer carries logging behaviour. A test can inject a silent sink instead of
-asserting on stderr — the seam is real, not hypothetical.
+Owns the one logging concern: every line goes to stderr, and for each chat
+in the verbose_chats set it is also mirrored to Telegram. Verbose state is
+per-chat, stored in a set of chat_ids.
 """
 from __future__ import annotations
 
@@ -11,26 +10,35 @@ from ..domain.ports import Clock, Telegram
 
 
 class DaemonLog:
-    def __init__(self, clock: Clock, telegram: Telegram, *, verbose: bool = False) -> None:
+    def __init__(
+        self,
+        clock: Clock,
+        telegram: Telegram,
+        *,
+        verbose_chats: set[str] | None = None,
+    ) -> None:
         self._clock = clock
         self._telegram = telegram
-        self._verbose = verbose
+        self._verbose_chats: set[str] = verbose_chats or set()
 
     @property
-    def verbose(self) -> bool:
-        return self._verbose
+    def verbose_chats(self) -> set[str]:
+        return self._verbose_chats
 
-    def set_verbose(self, on: bool) -> None:
-        self._verbose = on
+    def set_verbose(self, chat_id: str, on: bool) -> None:
+        if on:
+            self._verbose_chats.add(chat_id)
+        else:
+            self._verbose_chats.discard(chat_id)
 
     def log(self, msg: str) -> None:
         import sys
 
         line = f"[{self._clock.now().isoformat(timespec='seconds')}] {msg}"
         print(line, file=sys.stderr, flush=True)
-        if self._verbose:
+        for chat_id in self._verbose_chats:
             try:
-                self._telegram.send(line)
+                self._telegram.send_to(chat_id, line)
             except Exception:
                 pass
 

@@ -3,39 +3,92 @@ from campcli.domain.ports import TelegramUpdate
 
 class TestPollerStart:
     def test_start_sends_startup_message(self, poller, fake_telegram):
+        # Without any authorized users, no startup message is sent
+        poller._tg_allowed_ids = [1]
+        poller._settings_repo.set_setting("chat:1", "100")
         poller.start()
         assert "campcli daemon started v3" in " ".join(fake_telegram.sent)
+
+    def test_start_registers_commands(self, poller, fake_telegram):
+        poller.start()
+        assert fake_telegram.commands_registered is not None
 
 
 class TestPollerCommands:
     def test_verbose_on(self, poller, fake_telegram, store):
+        poller._tg_allowed_ids = [1]
         fake_telegram.canned_updates = [
-            TelegramUpdate(update_id=1, chat_id="1", text="/verbose on")
+            TelegramUpdate(update_id=1, chat_id="100", text="/verbose on", from_id=1)
         ]
         poller.tick()
-        assert poller._verbose is True
-        assert store.get_setting("verbose") == "on"
+        assert store.get_setting("verbose:1") == "on"
         assert "verbose logging ON" in fake_telegram.sent
 
     def test_verbose_off(self, poller, fake_telegram, store):
-        store.set_setting("verbose", "on")
+        poller._tg_allowed_ids = [1]
+        store.set_setting("verbose:1", "on")
         fake_telegram.canned_updates = [
-            TelegramUpdate(update_id=1, chat_id="1", text="/verbose off")
+            TelegramUpdate(update_id=1, chat_id="100", text="/verbose off", from_id=1)
         ]
         poller.tick()
-        assert poller._verbose is False
-        assert store.get_setting("verbose") == "off"
+        assert store.get_setting("verbose:1") == "off"
         assert "verbose logging OFF" in fake_telegram.sent
 
     def test_unknown_command(self, poller, fake_telegram, store):
         fake_telegram.canned_updates = [
-            TelegramUpdate(update_id=1, chat_id="1", text="garbage")
+            TelegramUpdate(update_id=1, chat_id="100", text="garbage", from_id=1)
         ]
         poller.tick()
-        assert poller._verbose is False
+        assert poller._get_verbose(1) is False
 
 
 class TestPollerNotificationWiring:
     def test_tick_calls_start_poll(self, poller, fake_notifier):
         poller.tick()
         assert len(fake_notifier.start_poll_calls) == 1
+
+    def test_unauthorized_user_receives_id_message(self, poller, fake_telegram):
+        poller._tg_allowed_ids = [1]
+        fake_telegram.canned_updates = [
+            TelegramUpdate(update_id=1, chat_id="100", text="/verbose", from_id=999)
+        ]
+        poller.tick()
+        assert "Your Telegram ID is 999" in " ".join(fake_telegram.sent)
+
+    def test_empty_tg_allowed_ids_no_broadcast_no_commands(self, poller, fake_telegram, store):
+        """When tg_allowed_ids is empty, no one is authorized, no commands processed."""
+        poller._tg_allowed_ids = []
+        # Even an authorized-looking user gets rejected
+        fake_telegram.canned_updates = [
+            TelegramUpdate(update_id=1, chat_id="100", text="/verbose on", from_id=1)
+        ]
+        poller.tick()
+        # No verbose state set
+        assert store.get_setting("verbose:1") is None
+        # No startup message sent (no authorized users)
+        assert fake_telegram.sent == [] or all(
+            "Your Telegram ID is" in s for s in fake_telegram.sent
+        )
+
+    def test_last_seen_chat_tracking(self, poller, store, fake_telegram):
+        poller._tg_allowed_ids = [1]
+        fake_telegram.canned_updates = [
+            TelegramUpdate(update_id=1, chat_id="200", text="/verbose on", from_id=1)
+        ]
+        poller.tick()
+        assert store.get_setting("chat:1") == "200"
+
+    def test_unauthorized_callback_query_answered(self, poller, fake_telegram):
+        """Unauthorized callback query must answer (dismiss spinner)."""
+        poller._tg_allowed_ids = [1]
+        fake_telegram.canned_updates = [
+            TelegramUpdate(
+                update_id=1, chat_id="100", text="",
+                from_id=999, callback_query_id="cb_unauth",
+                callback_data="verbose_on",
+            )
+        ]
+        poller.tick()
+        # The unanswered callback query would leave the spinner spinning;
+        # the fix requires answer_callback_query to be called.
+        assert "cb_unauth" in fake_telegram.answered_callbacks

@@ -71,6 +71,14 @@ class TestProfileDefault:
         assert p.rest_days_between_bookings == 14
         assert p.allowed == []
 
+    def test_tg_allowed_ids_default_empty(self):
+        p = Profile()
+        assert p.tg_allowed_ids == []
+
+    def test_tg_allowed_ids_custom(self):
+        p = Profile(tg_allowed_ids=[12345, 67890])
+        assert p.tg_allowed_ids == [12345, 67890]
+
     def test_allowed_park_ids_default_empty(self):
         p = Profile()
         assert p.allowed_park_ids == {}
@@ -100,6 +108,7 @@ class TestProfileFromJson:
             "max_drive_hours": 4.0,
             "min_start_date": "2026-07-01",
             "rest_days_between_bookings": 7,
+            "tg_allowed_ids": [12345],
             "allowed": [{"park": "Golden Ears"}],
         })
         p = Profile.model_validate_json(raw)
@@ -108,9 +117,21 @@ class TestProfileFromJson:
         assert p.max_drive_hours == 4.0
         assert p.min_start_date == "2026-07-01"
         assert p.rest_days_between_bookings == 7
+        assert p.tg_allowed_ids == [12345]
         assert len(p.allowed) == 1
         assert p.allowed[0].park == "Golden Ears"
         assert p.allowed[0].map is None
+
+    def test_json_without_tg_allowed_ids_uses_default(self):
+        raw = json.dumps({"patterns": ["fri-sun"]})
+        p = Profile.model_validate_json(raw)
+        assert p.tg_allowed_ids == []
+
+    def test_default_json_contains_tg_allowed_ids(self, tmp_path):
+        from unittest.mock import patch
+        from campcli.application.profile import _DEFAULT_JSON
+        assert "tg_allowed_ids" in _DEFAULT_JSON
+        assert _DEFAULT_JSON["tg_allowed_ids"] == []
 
 
 # ---------------------------------------------------------------------------

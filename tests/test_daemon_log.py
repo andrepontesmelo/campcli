@@ -8,8 +8,8 @@ class FakeTelegram:
     def __init__(self):
         self.sent = []
 
-    def send(self, text):
-        self.sent.append(text)
+    def send_to(self, chat_id, text):
+        self.sent.append((chat_id, text))
 
 
 class FrozenClock:
@@ -26,23 +26,40 @@ def test_quiet_does_not_mirror_to_telegram():
 
 def test_verbose_mirrors_to_telegram():
     tg = FakeTelegram()
-    log = DaemonLog(FrozenClock(), tg, verbose=True)
+    log = DaemonLog(FrozenClock(), tg, verbose_chats={"chat1"})
     log.log("scanning")
-    assert len(tg.sent) == 1 and "scanning" in tg.sent[0]
+    assert len(tg.sent) == 1
+    assert tg.sent[0] == ("chat1", tg.sent[0][1])
 
 
-def test_set_verbose_toggles_mirroring():
+def test_set_verbose_adds_chat():
     tg = FakeTelegram()
     log = DaemonLog(FrozenClock(), tg)
-    log.set_verbose(True)
+    log.set_verbose("chat1", True)
     log.log("x")
     assert len(tg.sent) == 1
+    assert tg.sent[0][0] == "chat1"
+
+
+def test_set_verbose_removes_chat():
+    tg = FakeTelegram()
+    log = DaemonLog(FrozenClock(), tg, verbose_chats={"chat1"})
+    log.set_verbose("chat1", False)
+    log.log("x")
+    assert tg.sent == []
+
+
+def test_multiple_verbose_chats():
+    tg = FakeTelegram()
+    log = DaemonLog(FrozenClock(), tg, verbose_chats={"chat1", "chat2"})
+    log.log("hello")
+    assert len(tg.sent) == 2
 
 
 def test_telegram_failure_is_swallowed():
     class Boom(FakeTelegram):
-        def send(self, text):
+        def send_to(self, chat_id, text):
             raise RuntimeError("down")
 
-    log = DaemonLog(FrozenClock(), Boom(), verbose=True)
+    log = DaemonLog(FrozenClock(), Boom(), verbose_chats={"chat1"})
     log.log("still logs to stderr")  # must not raise

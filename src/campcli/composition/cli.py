@@ -107,12 +107,14 @@ book_app = typer.Typer(no_args_is_help=True, help="Booking deep-link helpers.")
 catalog_app = typer.Typer(no_args_is_help=True, help="Manage the cached park catalog.")
 bookings_app = typer.Typer(no_args_is_help=True, help="Manage existing campsite bookings.")
 blocked_app = typer.Typer(no_args_is_help=True, help="Manage the blocklist of unwanted parks.")
+telegram_app = typer.Typer(no_args_is_help=True, help="Manage authorized Telegram users.")
 app.add_typer(parks_app, name="parks")
 app.add_typer(watch_app, name="watch")
 app.add_typer(book_app, name="book")
 app.add_typer(catalog_app, name="catalog")
 app.add_typer(bookings_app, name="bookings")
 app.add_typer(blocked_app, name="blocked")
+app.add_typer(telegram_app, name="telegram")
 
 
 # ----- parks -----------------------------------------------------------------
@@ -445,6 +447,79 @@ def blocked_rm(park: str = typer.Argument(..., help="Park name or numeric id."))
     typer.echo(f"unblocked {park}")
 
 
+# ----- telegram --------------------------------------------------------------
+
+@telegram_app.command("allow")
+def telegram_allow(
+    tg_ids: list[int] = typer.Argument(..., help="Telegram user ID(s) to authorize."),
+) -> None:
+    """Add one or more Telegram user IDs to the authorized list."""
+    profile_path = CONFIG_DIR / "profile.json"
+    if not profile_path.exists():
+        typer.echo("error: profile.json not found", err=True)
+        raise typer.Exit(code=2)
+    import json
+    raw = json.loads(profile_path.read_text())
+    allowed = raw.get("tg_allowed_ids", [])
+    added = []
+    for tid in tg_ids:
+        if tid in allowed:
+            continue
+        allowed.append(tid)
+        added.append(tid)
+    raw["tg_allowed_ids"] = allowed
+    profile_path.write_text(json.dumps(raw, indent=2) + "\n")
+    if added:
+        typer.echo(f"authorized: {', '.join(str(t) for t in added)}")
+    else:
+        typer.echo("all IDs already authorized")
+
+
+@telegram_app.command("revoke")
+def telegram_revoke(
+    tg_ids: list[int] = typer.Argument(..., help="Telegram user ID(s) to revoke."),
+) -> None:
+    """Remove one or more Telegram user IDs from the authorized list."""
+    profile_path = CONFIG_DIR / "profile.json"
+    if not profile_path.exists():
+        typer.echo("error: profile.json not found", err=True)
+        raise typer.Exit(code=2)
+    import json
+    raw = json.loads(profile_path.read_text())
+    allowed = raw.get("tg_allowed_ids", [])
+    removed = []
+    not_found = []
+    for tid in tg_ids:
+        if tid in allowed:
+            allowed.remove(tid)
+            removed.append(tid)
+        else:
+            not_found.append(tid)
+    raw["tg_allowed_ids"] = allowed
+    profile_path.write_text(json.dumps(raw, indent=2) + "\n")
+    if removed:
+        typer.echo(f"revoked: {', '.join(str(t) for t in removed)}")
+    for tid in not_found:
+        typer.echo(f"{tid} not found in authorized list")
+
+
+@telegram_app.command("list")
+def telegram_list() -> None:
+    """List authorized Telegram users."""
+    profile_path = CONFIG_DIR / "profile.json"
+    if not profile_path.exists():
+        typer.echo("error: profile.json not found", err=True)
+        raise typer.Exit(code=2)
+    import json
+    raw = json.loads(profile_path.read_text())
+    allowed = raw.get("tg_allowed_ids", [])
+    if not allowed:
+        typer.echo("no authorized telegram users")
+        return
+    for tid in allowed:
+        typer.echo(str(tid))
+
+
 # ----- daemon ----------------------------------------------------------------
 
 @app.command("daemon")
@@ -452,11 +527,10 @@ def daemon_cmd(
     interval: float = typer.Option(1.0, "--interval", help="Seconds to sleep between polls."),
 ) -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        typer.echo("error: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID", err=True)
+    if not token:
+        typer.echo("error: set TELEGRAM_BOT_TOKEN", err=True)
         raise typer.Exit(code=2)
-    daemon_svc.run_forever(bot_token=token, chat_id=chat_id, interval_secs=interval)
+    daemon_svc.run_forever(bot_token=token, interval_secs=interval)
 
 
 if __name__ == "__main__":

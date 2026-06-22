@@ -32,13 +32,38 @@ class FakeTelegram:
     def __init__(self):
         self.sent: list[str] = []
         self.canned_updates: list[TelegramUpdate] = []
+        self.commands_registered: list | None = None
+        self.inline_keyboards_sent: list[tuple[str, str, list]] = []
+        self.edited_messages: list[tuple[str, int, str | None, list | None]] = []
+        self.answered_callbacks: list[str] = []
 
-    def send(self, text: str) -> None:
+    def send_to(self, chat_id: str, text: str) -> None:
         self.sent.append(text)
 
     def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
         out, self.canned_updates = self.canned_updates, []
         return out
+
+    def set_my_commands(self, commands: list) -> None:
+        self.commands_registered = commands
+
+    def send_inline_keyboard(
+        self, chat_id: str, text: str, buttons: list[list[dict[str, str]]]
+    ) -> int:
+        self.inline_keyboards_sent.append((chat_id, text, buttons))
+        return 42  # fake message_id
+
+    def edit_message_reply_markup(
+        self,
+        chat_id: str,
+        message_id: int,
+        text: str | None = None,
+        buttons: list[list[dict[str, str]]] | None = None,
+    ) -> None:
+        self.edited_messages.append((chat_id, message_id, text, buttons))
+
+    def answer_callback_query(self, query_id: str, text: str | None = None) -> None:
+        self.answered_callbacks.append(query_id)
 
 
 class FakeSearchNotifier:
@@ -49,7 +74,7 @@ class FakeSearchNotifier:
     def start_poll(self, bookings, blocked_park_ids):
         self.start_poll_calls.append((bookings, blocked_park_ids))
 
-    def notify(self, match):
+    def notify(self, match, *, chat_ids=None):
         self.notify_calls.append(match)
 
 

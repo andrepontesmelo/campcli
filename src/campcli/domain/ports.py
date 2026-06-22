@@ -120,6 +120,16 @@ class TelegramUpdate(BaseModel):
     update_id: int
     chat_id: str
     text: str
+    from_id: int | None = None
+    callback_query_id: str | None = None
+    callback_data: str | None = None
+    message_id: int | None = None
+
+
+class BotCommand(BaseModel):
+    """A command registered via setMyCommands."""
+    command: str
+    description: str
 
 
 class Telegram(Protocol):
@@ -129,9 +139,29 @@ class Telegram(Protocol):
     responsible for JSON parsing and chat_id filtering.
     """
 
-    def send(self, text: str) -> None:
-        """Post a message to the configured chat."""
+    def send_to(self, chat_id: str, text: str) -> None:
+        """Post a message to the given chat."""
 
     def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
         """Short-poll Telegram for incoming commands. Returns [] on error."""
+
+    def set_my_commands(self, commands: list[BotCommand]) -> None:
+        """Register bot commands (auto-complete in chat UI)."""
+
+    def send_inline_keyboard(
+        self, chat_id: str, text: str, buttons: list[list[dict[str, str]]]
+    ) -> int:
+        """Send a message with inline keyboard; return message_id."""
+
+    def edit_message_reply_markup(
+        self,
+        chat_id: str,
+        message_id: int,
+        text: str | None = None,
+        buttons: list[list[dict[str, str]]] | None = None,
+    ) -> None:
+        """Edit an existing message's reply markup."""
+
+    def answer_callback_query(self, query_id: str, text: str | None = None) -> None:
+        """Acknowledge a callback query (dismisses loading spinner)."""
 

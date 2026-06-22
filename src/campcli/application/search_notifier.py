@@ -34,7 +34,7 @@ class SearchNotifier:
     ) -> None:
         self._policy.update_context(bookings, blocked_park_ids)
 
-    def notify(self, match: WeekendMatch) -> None:
+    def notify(self, match: WeekendMatch, *, chat_ids: list[str]) -> None:
         decision = self._policy.decide(match)
         if decision is None:
             return
@@ -44,12 +44,15 @@ class SearchNotifier:
             next_gap_days=decision.next_gap_days,
             drive_times=self._drive_times,
         )
-        try:
-            self._telegram.send(text)
+        sent_ok = False
+        for chat_id in chat_ids:
+            try:
+                self._telegram.send_to(chat_id, text)
+                sent_ok = True
+            except Exception as e:
+                self._log(f"telegram send to {chat_id} failed: {e}")
+        if sent_ok:
+            self._policy.mark_sent(decision)
             self._log(
                 f"notified: {match.park_name} {match.map_name} {match.start_date}"
             )
-        except Exception as e:
-            self._log(f"telegram send failed: {e}")
-            return
-        self._policy.mark_sent(decision)

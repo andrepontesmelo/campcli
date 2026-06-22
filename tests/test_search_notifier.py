@@ -9,7 +9,7 @@ class FakeTelegram:
     def __init__(self):
         self.sent: list[str] = []
 
-    def send(self, text: str) -> None:
+    def send_to(self, chat_id: str, text: str) -> None:
         self.sent.append(text)
 
 
@@ -36,8 +36,8 @@ class TestSearchNotifierDedup:
         notifier = make_notifier()
         m = make_match()
         notifier.start_poll([], set())
-        notifier.notify(m)
-        notifier.notify(m)
+        notifier.notify(m, chat_ids=["chat1"])
+        notifier.notify(m, chat_ids=["chat1"])
         assert len(notifier._telegram.sent) == 1
 
     def test_different_match_sends_twice(self):
@@ -45,8 +45,8 @@ class TestSearchNotifierDedup:
         m1 = make_match(park_id=1)
         m2 = make_match(park_id=2)
         notifier.start_poll([], set())
-        notifier.notify(m1)
-        notifier.notify(m2)
+        notifier.notify(m1, chat_ids=["chat1"])
+        notifier.notify(m2, chat_ids=["chat1"])
         assert len(notifier._telegram.sent) == 2
 
 
@@ -55,13 +55,29 @@ class TestSearchNotifierBlocked:
         notifier = make_notifier()
         m = make_match()
         notifier.start_poll([], {1})
-        notifier.notify(m)
+        notifier.notify(m, chat_ids=["chat1"])
         assert len(notifier._telegram.sent) == 0
 
     def test_blocked_match_key_added_to_seen(self):
         notifier = make_notifier()
         m = make_match()
         notifier.start_poll([], {1})
-        notifier.notify(m)
+        notifier.notify(m, chat_ids=["chat1"])
         key = (m.park_id, m.map_id, m.start_date, m.nights)
         assert key in notifier._policy._seen
+
+
+class TestSearchNotifierBroadcast:
+    def test_broadcast_to_multiple_chats(self):
+        notifier = make_notifier()
+        m = make_match()
+        notifier.start_poll([], set())
+        notifier.notify(m, chat_ids=["chat1", "chat2"])
+        assert len(notifier._telegram.sent) == 2
+
+    def test_empty_chat_ids_sends_nothing(self):
+        notifier = make_notifier()
+        m = make_match()
+        notifier.start_poll([], set())
+        notifier.notify(m, chat_ids=[])
+        assert len(notifier._telegram.sent) == 0

@@ -19,14 +19,13 @@ from ..infrastructure.telegram import HttpxTelegram
 def run_forever(
     *,
     bot_token: str,
-    chat_id: str,
     interval_secs: float = 1.0,
     profile: Profile | None = None,
 ) -> None:
     store = SqliteStore(DB_PATH)
     clock = SystemClock()
     drive_times = load_drive_times()
-    with HttpxTelegram(token=bot_token, chat_id=chat_id) as telegram, BCParksClient() as api:
+    with HttpxTelegram(token=bot_token) as telegram, BCParksClient() as api:
         if profile is None:
             profile = load_profile(api)
         notifier = SearchNotifier(

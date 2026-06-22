@@ -91,6 +91,7 @@ class Profile(BaseModel):
     max_drive_hours: float = 3.0
     min_start_date: str | None = None
     rest_days_between_bookings: int = 14
+    tg_allowed_ids: list[int] = Field(default_factory=list)
     allowed: list[AllowedEntry] = Field(default_factory=list)
     allowed_park_ids: dict[int, set[int] | None] = Field(
         default_factory=dict,
@@ -119,6 +120,7 @@ _DEFAULT_JSON = {
     "max_drive_hours": 3.0,
     "min_start_date": None,
     "rest_days_between_bookings": 14,
+    "tg_allowed_ids": [],
     "allowed": [],
 }
 
@@ -131,8 +133,12 @@ def _make_default_profile(path: Path) -> Profile:
 
 
 def _resolve_park(query: str, parks: list[Park]) -> Park:
-    """Find a park by name (case-insensitive exact match)."""
-    matches = [p for p in parks if p.name.lower() == query.lower()]
+    """Find a park by name — exact then substring (case-insensitive)."""
+    q = query.strip().lower()
+    exact = [p for p in parks if p.name.lower() == q]
+    if len(exact) == 1:
+        return exact[0]
+    matches = [p for p in parks if q in p.name.lower()]
     if len(matches) == 1:
         return matches[0]
     if not matches:
