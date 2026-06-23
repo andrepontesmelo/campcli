@@ -86,6 +86,10 @@ def run(
     if limit_parks is not None:
         parks = parks[:limit_parks]
 
+    # Pre-filter by allowlist so progress matches checked parks.
+    if allowed_park_ids is not None:
+        parks = [p for p in parks if p.park_id in allowed_park_ids]
+
     if not parks:
         return
 
@@ -94,10 +98,7 @@ def run(
         if progress:
             progress(f"[{i}/{total}] {park.name}")
 
-        # Apply park-level allowlist.
         if allowed_park_ids is not None:
-            if park.park_id not in allowed_park_ids:
-                continue
             allowed_maps = allowed_park_ids[park.park_id]
 
         try:
