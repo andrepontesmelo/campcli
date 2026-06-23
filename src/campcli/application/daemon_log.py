@@ -38,7 +38,7 @@ class DaemonLog:
         for chat_id in self._verbose_chats:
             try:
                 self._telegram.send_to(chat_id, line)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"telegram send to {chat_id} failed: {e}", file=sys.stderr)
 
     __call__ = log

@@ -142,8 +142,10 @@ class Telegram(Protocol):
     def send_to(self, chat_id: str, text: str) -> None:
         """Post a message to the given chat."""
 
-    def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
-        """Short-poll Telegram for incoming commands. Returns [] on error."""
+    def poll_updates(
+        self, offset: int | None = None, long_poll_timeout: int = 0
+    ) -> list[TelegramUpdate]:
+        """Poll Telegram for incoming commands. Returns [] on error."""
 
     def set_my_commands(self, commands: list[BotCommand]) -> None:
         """Register bot commands (auto-complete in chat UI)."""

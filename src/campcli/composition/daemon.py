@@ -28,7 +28,11 @@ def run_forever(
     interval = read_request_interval(store)
     clock = SystemClock()
     drive_times = load_drive_times()
-    with HttpxTelegram(token=bot_token) as telegram, BCParksClient(min_interval_secs=interval) as api:
+    with (
+        HttpxTelegram(token=bot_token) as telegram,
+        HttpxTelegram(token=bot_token) as poll_telegram,
+        BCParksClient(min_interval_secs=interval) as api,
+    ):
         if profile is None:
             profile = load_profile(api)
         notifier = SearchNotifier(
@@ -46,6 +50,7 @@ def run_forever(
             profile=profile,
         )
         notifier.set_log(poller.log)
+        poller.set_poll_telegram(poll_telegram)
         poller.start()
         stop = threading.Event()
         cmd_thread = threading.Thread(

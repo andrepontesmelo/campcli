@@ -49,7 +49,11 @@ class Poller:
             self._settings_repo, self._tg_allowed_ids
         )
         self._log = DaemonLog(clock, telegram, verbose_chats=verbose_chats)
+        self._poll_telegram: Telegram | None = None
         self._update_offset: int | None = None
+
+    def set_poll_telegram(self, poll_telegram: Telegram) -> None:
+        self._poll_telegram = poll_telegram
 
     def start(self) -> None:
         # Register bot commands
@@ -101,9 +105,10 @@ class Poller:
     def handle_commands_forever(
         self, stop: threading.Event, long_poll_timeout: int = 25
     ) -> None:
+        poll = self._poll_telegram or self._telegram
         while not stop.is_set():
             try:
-                updates = self._telegram.poll_updates(
+                updates = poll.poll_updates(
                     offset=self._update_offset,
                     long_poll_timeout=long_poll_timeout,
                 )
