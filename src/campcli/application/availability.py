@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from ..constants import AVAILABILITY_AVAILABLE
+from ..domain.goingtocamp_codes import AVAILABILITY_AVAILABLE
 from ..domain.models import AvailableSite, Map, Park
 from ..domain.ports import BCParksApi
 

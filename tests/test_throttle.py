@@ -7,8 +7,12 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
+from campcli.application.throttle import (
+    DEFAULT_REQUEST_INTERVAL_SECS,
+    SETTING_REQUEST_INTERVAL_KEY,
+    read_request_interval,
+)
 from campcli.composition.cli import app
-from campcli.constants import SETTING_REQUEST_INTERVAL_KEY, read_request_interval, DEFAULT_REQUEST_INTERVAL_SECS
 from campcli.infrastructure.api import BCParksClient
 from campcli.infrastructure.store import SqliteStore
 

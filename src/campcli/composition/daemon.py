@@ -7,7 +7,8 @@ import traceback
 
 from ..infrastructure.api import BCParksClient
 from ..infrastructure.clock import SystemClock
-from ..constants import DB_PATH, read_request_interval
+from ..application.throttle import read_request_interval
+from ..constants import DB_PATH
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..application.poller import Poller
 from ..application.profile import Profile, load_profile

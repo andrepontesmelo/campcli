@@ -15,11 +15,13 @@ from __future__ import annotations
 
 from datetime import date
 
-from ..constants import PEAK_START_MONTH_DAY
-
 
 SHOULDER_FEE = 31.0
 PEAK_FEE = 43.0
+
+# Peak season starts Jun 15 and runs through Labour Day (first Monday of
+# September). Outside that window is shoulder/off-season.
+PEAK_START_MONTH_DAY = (6, 15)
 
 
 def labour_day(year: int) -> date:

@@ -9,17 +9,17 @@ from typing import Any, Callable
 
 import httpx
 
-from ..constants import (
-    BASE_URL,
-    CAMP_CATEGORY_IDS,
-    CATALOG_PATH,
-    DEFAULT_REQUEST_INTERVAL_SECS,
-    HTTP_TIMEOUT,
-    NON_GROUP_EQUIPMENT,
-    USER_AGENT,
-)
+from ..constants import BASE_URL, CATALOG_PATH
+from ..application.throttle import DEFAULT_REQUEST_INTERVAL_SECS
+from ..domain.goingtocamp_codes import CAMP_CATEGORY_IDS, NON_GROUP_EQUIPMENT
 from ..domain.models import Map, Park
 from ..domain.ports import ApiError, RateLimited
+
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/131.0.0.0 Safari/537.36"
+)
+HTTP_TIMEOUT = 30.0
 
 
 def _localized_name(loc: dict) -> str:

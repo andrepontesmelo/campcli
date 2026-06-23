@@ -2,8 +2,8 @@
 from datetime import date
 
 from campcli.application.availability import check_map, check_park
-from campcli.constants import AVAILABILITY_AVAILABLE, AVAILABILITY_RESERVED
 from campcli.domain.models import AvailableSite, Map, Park
+from campcli.domain.goingtocamp_codes import AVAILABILITY_AVAILABLE, AVAILABILITY_RESERVED
 
 
 class TestCheckMap:

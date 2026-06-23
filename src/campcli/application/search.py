@@ -11,7 +11,7 @@ from datetime import date, timedelta
 
 from . import catalog
 from .availability import check_map
-from ..constants import max_bookable_start
+from ..domain.booking_window import max_bookable_start
 from .drive_times import DriveTimes
 from ..domain.models import Park, WeekendMatch
 from ..domain.ports import BCParksApi

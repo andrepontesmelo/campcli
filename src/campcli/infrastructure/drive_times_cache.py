@@ -12,7 +12,8 @@ import time
 import httpx
 
 from ..application.drive_times import DriveTimes
-from ..constants import DRIVE_TIMES_PATH, CONFIG_DIR, HOME_LATLON
+from ..constants import DRIVE_TIMES_PATH, CONFIG_DIR
+from ..domain.home import HOME_LATLON
 from ..domain.models import Park
 
 # Hand-curated fallback coordinates for parks Nominatim can't disambiguate

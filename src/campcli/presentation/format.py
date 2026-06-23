@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from ..application.booking_links import quote_url
-from ..constants import nearest_holiday
+from ..domain.holidays import nearest_holiday
 from ..application.drive_times import DriveTimes
 from ..domain.models import AvailableSite, Booking, Map, Park, Watch, WeekendMatch
 
