@@ -21,7 +21,7 @@ from ..application.availability import check_park
 from ..application.booking_links import quote_url
 from ..infrastructure.clock import SystemClock
 from ..application.profile import Profile, load_profile
-from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH, max_bookable_start
+from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH, DEFAULT_REQUEST_INTERVAL_SECS, SETTING_REQUEST_INTERVAL_KEY, max_bookable_start, read_request_interval
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..domain.ports import ApiError, RateLimited
@@ -92,8 +92,9 @@ _CLOCK = SystemClock()
 
 @contextmanager
 def api_call():
+    interval = read_request_interval(_store())
     try:
-        with BCParksClient() as api:
+        with BCParksClient(min_interval_secs=interval) as api:
             yield api
     except typer.Exit:
         raise
@@ -115,6 +116,8 @@ app.add_typer(catalog_app, name="catalog")
 app.add_typer(bookings_app, name="bookings")
 app.add_typer(blocked_app, name="blocked")
 app.add_typer(telegram_app, name="telegram")
+config_app = typer.Typer(no_args_is_help=True, help="Manage global settings.")
+app.add_typer(config_app, name="config")
 
 
 # ----- parks -----------------------------------------------------------------
@@ -371,6 +374,28 @@ def doctor() -> None:
     except Exception as e:
         typer.echo(f"api error:   {e}", err=True)
         raise typer.Exit(code=5) from e
+
+
+# ----- config ----------------------------------------------------------------
+
+@config_app.command("set-interval")
+def config_set_interval(
+    secs: float = typer.Argument(..., help="Minimum seconds between HTTP requests (must be > 0)."),
+) -> None:
+    if secs <= 0:
+        typer.echo("error: interval must be > 0", err=True)
+        raise typer.Exit(code=1)
+    _store().set_setting(SETTING_REQUEST_INTERVAL_KEY, str(secs))
+    typer.echo(f"request interval set to {secs}s")
+
+
+@config_app.command("show")
+def config_show() -> None:
+    raw = _store().get_setting(SETTING_REQUEST_INTERVAL_KEY)
+    if raw is None:
+        typer.echo(f"request_interval_secs: {DEFAULT_REQUEST_INTERVAL_SECS}s (default)")
+    else:
+        typer.echo(f"request_interval_secs: {raw}s")
 
 
 # ----- bookings --------------------------------------------------------------

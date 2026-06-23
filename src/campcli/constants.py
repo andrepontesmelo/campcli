@@ -3,8 +3,14 @@
 Validated by the prior investigation in this directory (test-report.md).
 All IDs are large negative ints by GoingToCamp convention.
 """
+from __future__ import annotations
+
 from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .domain.ports import SettingsRepo
 
 BASE_URL = "https://camping.bcparks.ca"
 USER_AGENT = (
@@ -30,6 +36,21 @@ DB_PATH = CONFIG_DIR / "state.db"
 CATALOG_PATH = CONFIG_DIR / "catalog.json"
 DRIVE_TIMES_PATH = CONFIG_DIR / "drive_times.json"
 PROFILE_PATH = CONFIG_DIR / "profile.json"
+
+DEFAULT_REQUEST_INTERVAL_SECS = 5.0
+
+SETTING_REQUEST_INTERVAL_KEY = "request_interval_secs"
+
+
+def read_request_interval(repo: SettingsRepo) -> float:
+    raw = repo.get_setting(SETTING_REQUEST_INTERVAL_KEY)
+    if raw is None:
+        return DEFAULT_REQUEST_INTERVAL_SECS
+    try:
+        return float(raw)
+    except (ValueError, TypeError):
+        return DEFAULT_REQUEST_INTERVAL_SECS
+
 
 # BC Parks system rule: reservations open only N months before start date.
 # Hard limit set by BC Parks — not user-configurable.

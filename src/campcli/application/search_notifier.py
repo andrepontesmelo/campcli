@@ -27,6 +27,9 @@ class SearchNotifier:
         self._log = log
         self._policy = NotificationPolicy(rest_days=rest_days)
 
+    def set_log(self, log: Callable[[str], None]) -> None:
+        self._log = log
+
     def start_poll(
         self,
         bookings: list[Booking],

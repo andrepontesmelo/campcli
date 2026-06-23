@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
-from typing import Any
+from time import monotonic, sleep
+from typing import Any, Callable
 
 import httpx
 
@@ -12,6 +13,7 @@ from ..constants import (
     BASE_URL,
     CAMP_CATEGORY_IDS,
     CATALOG_PATH,
+    DEFAULT_REQUEST_INTERVAL_SECS,
     HTTP_TIMEOUT,
     NON_GROUP_EQUIPMENT,
     USER_AGENT,
@@ -36,6 +38,8 @@ class BCParksClient:
         self,
         client: httpx.Client | None = None,
         cache_path: Path = CATALOG_PATH,
+        min_interval_secs: float = DEFAULT_REQUEST_INTERVAL_SECS,
+        sleep: Callable[[float], None] = sleep,
     ) -> None:
         self._client = client or httpx.Client(
             base_url=BASE_URL,
@@ -43,6 +47,9 @@ class BCParksClient:
             timeout=HTTP_TIMEOUT,
         )
         self._cache_path = cache_path
+        self._min_interval_secs = min_interval_secs
+        self._sleep = sleep
+        self._last_request_at: float | None = None
 
     def close(self) -> None:
         self._client.close()
@@ -54,6 +61,12 @@ class BCParksClient:
         self.close()
 
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        now = monotonic()
+        if self._last_request_at is not None and self._min_interval_secs > 0:
+            wait = self._min_interval_secs - (now - self._last_request_at)
+            if wait > 0:
+                self._sleep(wait)
+        self._last_request_at = monotonic()
         try:
             r = self._client.get(path, params=params)
         except httpx.HTTPError as e:
