@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 import time
 import traceback
 
@@ -46,12 +47,20 @@ def run_forever(
         )
         notifier.set_log(poller.log)
         poller.start()
+        stop = threading.Event()
+        cmd_thread = threading.Thread(
+            target=poller.handle_commands_forever,
+            args=(stop,),
+            daemon=True,
+        )
+        cmd_thread.start()
         while True:
             try:
-                poller.tick()
+                poller.run_search_once()
                 time.sleep(interval_secs)
             except KeyboardInterrupt:
                 poller.log("interrupted, exiting")
+                stop.set()
                 return
             except Exception as e:
                 poller.log(f"poll iteration failed: {e}")

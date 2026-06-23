@@ -40,13 +40,16 @@ class HttpxTelegram:
             )
             resp.raise_for_status()
 
-    def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
+    def poll_updates(
+        self, offset: int | None = None, long_poll_timeout: int = 0
+    ) -> list[TelegramUpdate]:
         url = f"https://api.telegram.org/bot{self._token}/getUpdates"
-        params: dict[str, int] = {"timeout": 0}
+        params: dict[str, int] = {"timeout": long_poll_timeout}
         if offset is not None:
             params["offset"] = offset
+        request_timeout = long_poll_timeout + 10 if long_poll_timeout else None
         try:
-            resp = self._client.get(url, params=params)
+            resp = self._client.get(url, params=params, timeout=request_timeout)
             resp.raise_for_status()
             data = resp.json()
             if not data.get("ok"):

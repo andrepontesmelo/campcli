@@ -40,7 +40,7 @@ class FakeTelegram:
     def send_to(self, chat_id: str, text: str) -> None:
         self.sent.append(text)
 
-    def poll_updates(self, offset: int | None = None) -> list[TelegramUpdate]:
+    def poll_updates(self, offset: int | None = None, long_poll_timeout: int = 0) -> list[TelegramUpdate]:
         out, self.canned_updates = self.canned_updates, []
         return out
 
