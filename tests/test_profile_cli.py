@@ -590,3 +590,318 @@ class TestSearchProfileAware:
 
         assert result.exit_code in (0, 3)
         assert "using profile 'default'" in result.stderr
+
+
+class TestNotInterestedCli:
+    """Tests for ``campcli profile not-interested`` commands."""
+
+    def test_add_success(self, tmp_path, fake_api):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "add",
+                    "test", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+        assert result.exit_code == 0
+        assert "Marked Bowron Lake as not interested" in result.stdout
+        assert "2026-07-01" in result.stdout
+        assert "2026-07-03" in result.stdout
+
+    def test_add_duplicate(self, tmp_path, fake_api):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                runner.invoke(app, [
+                    "profile", "not-interested", "add",
+                    "test", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "add",
+                    "test", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+        assert result.exit_code == 2
+        assert "Already marked not interested" in result.stderr
+
+    def test_add_unknown_profile(self, tmp_path):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            result = runner.invoke(app, [
+                "profile", "not-interested", "add",
+                "nonexistent", "Bowron Lake", "2026-07-01", "2026-07-03",
+            ])
+        assert result.exit_code == 2
+        assert "not found" in result.stderr
+
+    def test_add_unknown_park(self, tmp_path, fake_api):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "add",
+                    "test", "NoSuchPark", "2026-07-01", "2026-07-03",
+                ])
+        assert result.exit_code == 2
+        assert "no park matches" in result.stderr
+
+    def test_add_invalid_date(self, tmp_path):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            result = runner.invoke(app, [
+                "profile", "not-interested", "add",
+                "test", "Bowron Lake", "not-a-date", "2026-07-03",
+            ])
+        assert result.exit_code == 2
+        assert "invalid date" in result.stderr
+
+    def test_add_date_order_violation(self, tmp_path):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            result = runner.invoke(app, [
+                "profile", "not-interested", "add",
+                "test", "Bowron Lake", "2026-07-05", "2026-07-03",
+            ])
+        assert result.exit_code == 2
+        assert "date_start must not be after date_end" in result.stderr
+
+    def test_rm_success(self, tmp_path, fake_api):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                runner.invoke(app, [
+                    "profile", "not-interested", "add",
+                    "test", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "rm",
+                    "test", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+        assert result.exit_code == 0
+        assert "Removed not-interested" in result.stdout
+
+    def test_rm_nonexistent(self, tmp_path, fake_api):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "rm",
+                    "test", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+        assert result.exit_code == 2
+        assert "No matching not-interested entry" in result.stderr
+
+    def test_rm_unknown_profile(self, tmp_path):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            result = runner.invoke(app, [
+                "profile", "not-interested", "rm",
+                "nonexistent", "Bowron Lake", "2026-07-01", "2026-07-03",
+            ])
+        assert result.exit_code == 2
+        assert "not found" in result.stderr
+
+    def test_rm_unknown_park(self, tmp_path, fake_api):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "rm",
+                    "test", "NoSuchPark", "2026-07-01", "2026-07-03",
+                ])
+        assert result.exit_code == 2
+        assert "no park matches" in result.stderr
+
+    def test_list_with_entries(self, tmp_path, fake_api):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                runner.invoke(app, [
+                    "profile", "not-interested", "add",
+                    "test", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "list", "test",
+                ])
+        assert result.exit_code == 0
+        assert "Bowron Lake" in result.stdout
+        assert "2026-07-01" in result.stdout
+        assert "2026-07-03" in result.stdout
+
+    def test_list_empty(self, tmp_path):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "test"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            result = runner.invoke(app, [
+                "profile", "not-interested", "list", "test",
+            ])
+        assert result.exit_code == 0
+        assert "No not-interested entries" in result.stdout
+
+    def test_list_unknown_profile(self, tmp_path):
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            result = runner.invoke(app, [
+                "profile", "not-interested", "list", "nonexistent",
+            ])
+        assert result.exit_code == 2
+        assert "not found" in result.stderr
+
+    def test_e2e_cli_add_skips_in_poll(self, tmp_path, fake_api):
+        """End-to-end: CLI add → repo.list_for → SearchNotifier skips match."""
+        db = tmp_path / "state.db"
+        from datetime import date
+        from unittest.mock import patch
+        from campcli.composition import cli as cli_mod
+        from campcli.infrastructure.store import SqliteStore
+        from campcli.application.search_notifier import SearchNotifier
+        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import WeekendMatch
+
+        store = SqliteStore(db)
+
+        # Create profile via CLI
+        with patch.object(cli_mod, "DB_PATH", db):
+            result = runner.invoke(
+                app, ["profile", "create", "e2e"],
+                input="3\n3.0\n\n14\nfri-sun\n\nBowron Lake\n\n\n\n",
+            )
+        assert result.exit_code == 0
+
+        # Add not-interested via CLI
+        with patch.object(cli_mod, "DB_PATH", db):
+            with patch.object(cli_mod, "api_call") as mock_api:
+                mock_api.return_value.__enter__.return_value = fake_api
+                result = runner.invoke(app, [
+                    "profile", "not-interested", "add",
+                    "e2e", "Bowron Lake", "2026-07-01", "2026-07-03",
+                ])
+        assert result.exit_code == 0
+
+        # Verify via repo
+        profile = store.get_by_name("e2e")
+        entries = store.list_for(profile.id)
+        assert len(entries) == 1
+        assert entries[0].park_id == 1
+        assert entries[0].date_start == date(2026, 7, 1)
+        assert entries[0].date_end == date(2026, 7, 3)
+
+        # Build notifier with same store as not_interested_repo
+        class _FakeTelegram:
+            def __init__(self):
+                self.sent: list[str] = []
+            def send_to(self, chat_id: str, text: str) -> int:
+                self.sent.append(text)
+                return len(self.sent)
+
+        notifier = SearchNotifier(
+            telegram=_FakeTelegram(),
+            drive_times=DriveTimes.empty(),
+            log=lambda msg: None,
+            not_interested_repo=store,
+        )
+        notifier.start_poll([], set(), profile_id=profile.id)
+
+        # Match in skip set is silently dropped
+        match_skipped = WeekendMatch(
+            park_id=1, park_name="Bowron Lake", map_id=10, map_name="Main",
+            start_date=date(2026, 7, 1), end_date=date(2026, 7, 3),
+            nights=2, available_count=1,
+        )
+        notifier.notify(match_skipped, chat_ids=["chat1"])
+        assert len(notifier._telegram.sent) == 0
+
+        # Match NOT in skip set is sent
+        match_sent = WeekendMatch(
+            park_id=2, park_name="Golden Ears", map_id=10, map_name="Main",
+            start_date=date(2026, 8, 1), end_date=date(2026, 8, 3),
+            nights=2, available_count=1,
+        )
+        notifier.notify(match_sent, chat_ids=["chat1"])
+        assert len(notifier._telegram.sent) == 1

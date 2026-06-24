@@ -773,6 +773,107 @@ def _pattern_to_raw(p: PatternSpec) -> str:
     return base
 
 
+# ----- profile not-interested -------------------------------------------------
+
+not_interested_app = typer.Typer(
+    no_args_is_help=True, help="Manage not-interested entries (parks+dates to skip)."
+)
+profile_app.add_typer(not_interested_app, name="not-interested")
+
+
+@not_interested_app.command("add")
+def not_interested_add(
+    profile_name: str = typer.Argument(..., help="Profile name."),
+    park_name: str = typer.Argument(..., help="Park name."),
+    date_start: str = typer.Argument(..., help="Start date (YYYY-MM-DD)."),
+    date_end: str = typer.Argument(..., help="End date (YYYY-MM-DD)."),
+) -> None:
+    """Mark a park+dates as not interested for a profile."""
+    _run_profile_migration()
+    store = _store()
+    profile = _confirm_profile_exists(store, profile_name)
+    start = _parse_date_or_exit(date_start)
+    end = _parse_date_or_exit(date_end)
+    if start > end:
+        typer.echo("error: date_start must not be after date_end", err=True)
+        raise typer.Exit(code=2)
+    with api_call() as api:
+        try:
+            park = catalog.resolve_park(api, park_name)
+        except ValueError as e:
+            typer.echo(f"error: {e}", err=True)
+            raise typer.Exit(code=2)
+    try:
+        store.add(profile.id, park.park_id, start, end)
+    except ValueError:
+        typer.echo("Already marked not interested", err=True)
+        raise typer.Exit(code=2)
+    typer.echo(
+        f"Marked {park.name} as not interested ({start} – {end}) "
+        f"for profile {profile_name!r}"
+    )
+
+
+@not_interested_app.command("rm")
+def not_interested_rm(
+    profile_name: str = typer.Argument(..., help="Profile name."),
+    park_name: str = typer.Argument(..., help="Park name."),
+    date_start: str = typer.Argument(..., help="Start date (YYYY-MM-DD)."),
+    date_end: str = typer.Argument(..., help="End date (YYYY-MM-DD)."),
+) -> None:
+    """Remove a not-interested entry."""
+    _run_profile_migration()
+    store = _store()
+    profile = _confirm_profile_exists(store, profile_name)
+    start = _parse_date_or_exit(date_start)
+    end = _parse_date_or_exit(date_end)
+    if start > end:
+        typer.echo("error: date_start must not be after date_end", err=True)
+        raise typer.Exit(code=2)
+    with api_call() as api:
+        try:
+            park = catalog.resolve_park(api, park_name)
+        except ValueError as e:
+            typer.echo(f"error: {e}", err=True)
+            raise typer.Exit(code=2)
+    existing = store.list_for(profile.id)
+    if not any(
+        e.park_id == park.park_id and e.date_start == start and e.date_end == end
+        for e in existing
+    ):
+        typer.echo("No matching not-interested entry", err=True)
+        raise typer.Exit(code=2)
+    store.remove(profile.id, park.park_id, start, end)
+    typer.echo(
+        f"Removed not-interested: {park.name} ({start} – {end}) "
+        f"for profile {profile_name!r}"
+    )
+
+
+@not_interested_app.command("list")
+def not_interested_list(
+    profile_name: str = typer.Argument(..., help="Profile name."),
+) -> None:
+    """List not-interested entries for a profile."""
+    _run_profile_migration()
+    store = _store()
+    profile = _confirm_profile_exists(store, profile_name)
+    entries = store.list_for(profile.id)
+    if not entries:
+        typer.echo(f"No not-interested entries for profile {profile_name!r}")
+        return
+    with api_call() as api:
+        parks = {p.park_id: p.name for p in api.list_parks()}
+    header = f"{'Park':<30} {'Start':<12} {'End':<12}"
+    typer.echo(header)
+    typer.echo("-" * len(header))
+    for e in entries:
+        park_name = parks.get(e.park_id, str(e.park_id))
+        typer.echo(
+            f"{park_name:<30} {e.date_start.isoformat():<12} {e.date_end.isoformat():<12}"
+        )
+
+
 # ----- daemon ----------------------------------------------------------------
 
 @app.command("daemon")
