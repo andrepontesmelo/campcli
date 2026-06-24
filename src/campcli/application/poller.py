@@ -89,10 +89,6 @@ class Poller:
                 except Exception as e:
                     self.log(f"startup telegram to {tg_id} failed: {e}")
 
-    def tick(self) -> None:
-        self._handle_commands()
-        self.run_search_once()
-
     def run_search_once(self) -> None:
         self._refresh_tg_allowed_ids()
         self.log("poll start")
@@ -319,11 +315,6 @@ class Poller:
     def log(self, msg: str) -> None:
         self._log.log(msg)
 
-    def _handle_commands(self) -> None:
-        updates = self._telegram.poll_updates(offset=self._update_offset)
-        for upd in updates:
-            self._process_update(upd)
-
     def _process_update(self, upd) -> None:
         self._update_offset = upd.update_id + 1
         self.log(f"received update: {upd.text or '(callback)'!r}")
@@ -393,3 +384,14 @@ class Poller:
                 except Exception:
                     pass
             self.log(f"callback answered: {text}")
+
+
+def handle_one_command_batch(poller: Poller) -> None:
+    """Process one batch of Telegram updates on a Poller.
+
+    Was ``Poller._handle_commands``; extracted so tests can drive the
+    command-processing step without going through ``run_search_once``.
+    """
+    updates = poller._telegram.poll_updates(offset=poller._update_offset)
+    for upd in updates:
+        poller._process_update(upd)
