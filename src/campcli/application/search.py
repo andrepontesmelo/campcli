@@ -43,9 +43,10 @@ def expand_windows(
         if max_start is not None and d > max_start:
             d += timedelta(days=1)
             continue
-        for weekday, nights in patterns:
+        # TODO subtask 9ggclfjc: full enumeration rewrite — expand min/max
+        for weekday, span_nights, _min_nights, _max_nights in patterns:
             if d.weekday() == weekday and d >= today:
-                out.append((d, nights))
+                out.append((d, span_nights))
         d += timedelta(days=1)
     return out
 

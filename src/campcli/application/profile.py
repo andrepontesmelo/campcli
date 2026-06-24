@@ -10,6 +10,7 @@ Park/map allowlist names are resolved against the BC Parks catalog at load time.
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -31,13 +32,21 @@ _WEEKDAYS: dict[str, int] = {
 }
 
 
-def parse_pattern(s: str) -> tuple[int, int]:
-    """Parse ``"fri-sun"`` → ``(4, 2)``.
+def parse_pattern(s: str) -> tuple[int, int, int, int]:
+    """Parse ``"fri-sun"`` → ``(4, 2, 2, 2)`` or ``"fri-mon:2-3"`` → ``(4, 3, 2, 3)``.
 
-    Returns ``(start_weekday, nights)``. Raises ``ValueError`` for
-    unknown day names, wrap-around patterns, or same-day patterns.
+    Returns ``(start_weekday, span_nights, min_nights, max_nights)``.
+    Raises ``ValueError`` for invalid patterns.
     """
-    parts = s.split("-")
+    # Extract optional :min-max suffix.
+    suffix: str | None = None
+    if ":" in s:
+        s_part, suffix_str = s.split(":", 1)
+        suffix = suffix_str
+    else:
+        s_part = s
+
+    parts = s_part.split("-")
     if len(parts) != 2:
         raise ValueError(
             f"invalid pattern {s!r}: expected 'day-day' format "
@@ -56,13 +65,46 @@ def parse_pattern(s: str) -> tuple[int, int]:
             f"invalid pattern {s!r}: unknown day {end_str!r} "
             f"(expected mon/tue/wed/thu/fri/sat/sun)"
         )
-    if end <= start:
+    if end == start:
         raise ValueError(
             f"invalid pattern {s!r}: end day {end_str} must come after "
-            f"start day {start_str} (no wrap-around or same-day)"
+            f"start day {start_str} (same-day pattern)"
         )
-    nights = end - start
-    return start, nights
+    span_nights = (end - start) % 7
+    if span_nights > 5:
+        raise ValueError(
+            f"invalid pattern {s!r}: span too long — {span_nights} nights "
+            f"exceeds maximum of 5 (week-wrap not allowed)"
+        )
+
+    if suffix is not None:
+        mm = re.fullmatch(r"(\d+)-(\d+)", suffix)
+        if mm is None:
+            raise ValueError(
+                f"invalid pattern {s!r}: malformed min-max suffix "
+                f"{suffix!r} (expected format like '2-3')"
+            )
+        min_nights = int(mm.group(1))
+        max_nights = int(mm.group(2))
+        if min_nights < 1:
+            raise ValueError(
+                f"invalid pattern {s!r}: min_nights ({min_nights}) "
+                f"must be >= 1"
+            )
+        if min_nights > max_nights:
+            raise ValueError(
+                f"invalid pattern {s!r}: min_nights ({min_nights}) "
+                f"must be <= max_nights ({max_nights})"
+            )
+        if max_nights > span_nights:
+            raise ValueError(
+                f"invalid pattern {s!r}: max_nights ({max_nights}) "
+                f"exceeds span_nights ({span_nights})"
+            )
+    else:
+        min_nights = max_nights = span_nights
+
+    return start, span_nights, min_nights, max_nights
 
 
 # ---------------------------------------------------------------------------
@@ -99,8 +141,8 @@ class Profile(BaseModel):
 
     # ---- derived helpers ---------------------------------------------------
 
-    def pattern_tuples(self) -> list[tuple[int, int]]:
-        """Return patterns as ``[(weekday, nights), …]``."""
+    def pattern_tuples(self) -> list[tuple[int, int, int, int]]:
+        """Return patterns as ``[(weekday, span_nights, min_nights, max_nights), …]``."""
         return [parse_pattern(p) for p in self.patterns]
 
     def min_start_date_parsed(self) -> date | None:

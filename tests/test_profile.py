@@ -22,20 +22,20 @@ from campcli.domain.models import Map, Park
 
 class TestParsePattern:
     def test_fri_sun(self):
-        assert parse_pattern("fri-sun") == (4, 2)
+        assert parse_pattern("fri-sun") == (4, 2, 2, 2)
 
     def test_sat_sun(self):
-        assert parse_pattern("sat-sun") == (5, 1)
+        assert parse_pattern("sat-sun") == (5, 1, 1, 1)
 
     def test_mon_fri(self):
-        assert parse_pattern("mon-fri") == (0, 4)
+        assert parse_pattern("mon-fri") == (0, 4, 4, 4)
 
     def test_case_insensitive(self):
-        assert parse_pattern("FRI-sun") == (4, 2)
-        assert parse_pattern("SAT-SUN") == (5, 1)
+        assert parse_pattern("FRI-sun") == (4, 2, 2, 2)
+        assert parse_pattern("SAT-SUN") == (5, 1, 1, 1)
 
     def test_same_day_rejected(self):
-        with pytest.raises(ValueError, match="no wrap-around or same-day"):
+        with pytest.raises(ValueError, match="same-day pattern"):
             parse_pattern("fri-fri")
 
     def test_invalid_no_hyphen(self):
@@ -50,9 +50,68 @@ class TestParsePattern:
         with pytest.raises(ValueError, match="unknown day"):
             parse_pattern("fri-xyz")
 
+    def test_sun_fri(self):
+        """sun-fri wraps: (end-start)%7 = (4-6)%7 = 5 nights (≤5, OK)."""
+        assert parse_pattern("sun-fri") == (6, 5, 5, 5)
+
+    # ---- min-max suffix tests ------------------------------------------------
+
+    def test_fri_mon_2_3(self):
+        result = parse_pattern("fri-mon:2-3")
+        assert result == (4, 3, 2, 3)
+
+    def test_fri_mon_2_2(self):
+        result = parse_pattern("fri-mon:2-2")
+        assert result == (4, 3, 2, 2)
+
+    def test_bare_pattern_uses_span_for_min_max(self):
+        result = parse_pattern("fri-sun")
+        assert result == (4, 2, 2, 2)
+
+    def test_min_less_than_one_rejected(self):
+        with pytest.raises(ValueError, match="must be >= 1"):
+            parse_pattern("fri-mon:0-3")
+
+    def test_min_greater_than_max_rejected(self):
+        with pytest.raises(ValueError, match="must be <= max"):
+            parse_pattern("fri-mon:3-2")
+
+    def test_max_greater_than_span_rejected(self):
+        with pytest.raises(ValueError, match="exceeds span"):
+            parse_pattern("fri-mon:2-5")
+
+    def test_malformed_suffix_rejected(self):
+        with pytest.raises(ValueError, match="malformed min-max suffix"):
+            parse_pattern("fri-mon:abc")
+
+    def test_single_sided_suffix_rejected(self):
+        with pytest.raises(ValueError, match="malformed min-max suffix"):
+            parse_pattern("fri-mon:2")
+
+    def test_over_long_suffix_rejected(self):
+        with pytest.raises(ValueError, match="malformed min-max suffix"):
+            parse_pattern("fri-mon:2-3-4")
+
+    # ---- wrap-around / span-limit tests ----------------------------------------
+
     def test_wrap_around_rejected(self):
-        with pytest.raises(ValueError, match="no wrap-around"):
-            parse_pattern("sun-fri")
+        """sun-sat (6 nights) and mon-sun (6 nights) exceed the 5-night cap."""
+        with pytest.raises(ValueError, match="span too long"):
+            parse_pattern("sun-sat")
+        with pytest.raises(ValueError, match="span too long"):
+            parse_pattern("mon-sun")
+
+    def test_max_nights_equals_span_boundary(self):
+        """min=max=span (3) is valid: fri-mon:3-3."""
+        assert parse_pattern("fri-mon:3-3") == (4, 3, 3, 3)
+
+    def test_bare_pattern_fri_mon(self):
+        """Bare fri-mon (wrap, 3 nights) succeeds — short forward wrap."""
+        assert parse_pattern("fri-mon") == (4, 3, 3, 3)
+
+    def test_max_span_boundary(self):
+        """wed-mon = 5 nights — boundary of the max-span cap."""
+        assert parse_pattern("wed-mon") == (2, 5, 5, 5)
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +145,7 @@ class TestProfileDefault:
 
     def test_pattern_tuples(self):
         p = Profile(patterns=["fri-sun", "sat-sun"])
-        assert p.pattern_tuples() == [(4, 2), (5, 1)]
+        assert p.pattern_tuples() == [(4, 2, 2, 2), (5, 1, 1, 1)]
 
     def test_min_start_date_parsed_none(self):
         p = Profile()
