@@ -21,6 +21,32 @@ from .profile import Profile
 _EXPLOSION_THRESHOLD = 10
 
 
+def _emit_windows_for_anchor(
+    anchor: date,
+    span_nights: int,
+    min_nights: int,
+    max_nights: int,
+    today: date,
+    min_start: date | None,
+    max_start: date | None,
+) -> list[tuple[date, int]]:
+    """Emit (start, nights) windows anchored at *anchor* for a single pattern."""
+    out: list[tuple[date, int]] = []
+    for o in range(0, span_nights - min_nights + 1):
+        for n in range(min_nights, max_nights + 1):
+            if o + n > span_nights:
+                continue
+            start = anchor + timedelta(days=o)
+            if start < today:
+                continue
+            if min_start is not None and start < min_start:
+                continue
+            if max_start is not None and start > max_start:
+                continue
+            out.append((start, n))
+    return out
+
+
 def _enumerate_pattern(
     today: date,
     end: date,
@@ -36,18 +62,15 @@ def _enumerate_pattern(
         if d.weekday() != weekday:
             d += timedelta(days=1)
             continue
-        for o in range(0, span_nights - min_nights + 1):
-            for n in range(min_nights, max_nights + 1):
-                if o + n > span_nights:
-                    continue
-                start = d + timedelta(days=o)
-                if start < today:
-                    continue
-                if min_start is not None and start < min_start:
-                    continue
-                if max_start is not None and start > max_start:
-                    continue
-                out.append((start, n))
+        out.extend(_emit_windows_for_anchor(
+            anchor=d,
+            span_nights=span_nights,
+            min_nights=min_nights,
+            max_nights=max_nights,
+            today=today,
+            min_start=min_start,
+            max_start=max_start,
+        ))
         d += timedelta(days=1)
     return out
 
