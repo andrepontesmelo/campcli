@@ -353,7 +353,7 @@ class TestExplosionGuard:
             max_horizon_months=2,
         )
         mock = Mock()
-        windows = expand_windows(today, profile, progress=mock)
+        windows = expand_windows(today, profile, warn=mock)
         assert len(windows) > 10  # sanity: the pattern is indeed explosive
         mock.assert_called_once()
         msg = mock.call_args[0][0]
@@ -382,7 +382,7 @@ class TestExplosionGuard:
             max_horizon_months=1,
         )
         mock = Mock()
-        windows = expand_windows(today, profile, progress=mock)
+        windows = expand_windows(today, profile, warn=mock)
         assert 0 < len(windows) < 10  # well under threshold
         mock.assert_not_called()
 

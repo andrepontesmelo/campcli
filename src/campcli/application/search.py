@@ -78,7 +78,7 @@ def _enumerate_pattern(
 def expand_windows(
     today: date, profile: Profile, max_start: date | None = None,
     min_start: date | None = None,
-    progress: Callable[[str], None] | None = None,
+    warn: Callable[[str], None] | None = None,
 ) -> list[tuple[date, int]]:
     """Yield every (start_date, nights) in *profile.patterns* within horizon.
 
@@ -88,7 +88,7 @@ def expand_windows(
     (BC Parks booking window constraint — only start date matters).
     When *min_start* is set, windows starting before it are excluded.
 
-    *progress* is an optional side-channel for warnings (explosion guard).
+    *warn* is an optional side-channel for explosion warnings.
     """
     horizon_days = profile.max_horizon_months * 30
     end = today + timedelta(days=horizon_days)
@@ -98,8 +98,8 @@ def expand_windows(
         pattern_windows = _enumerate_pattern(
             today, end, pattern, min_start, max_start,
         )
-        if len(pattern_windows) > _EXPLOSION_THRESHOLD and progress is not None:
-            progress(
+        if len(pattern_windows) > _EXPLOSION_THRESHOLD and warn is not None:
+            warn(
                 f"warning: pattern #{i} {profile.patterns[i]!r} expanded to "
                 f"{len(pattern_windows)} windows (threshold="
                 f"{_EXPLOSION_THRESHOLD}); consider tightening the span"
@@ -137,7 +137,7 @@ def run(
         today, profile,
         max_start=max_bookable_start(today),
         min_start=min_start,
-        progress=progress,
+        warn=progress,
     )
     parks = catalog.list_parks_filtered(
         api, drive_times=drive_times, max_hours=profile.max_drive_hours,
