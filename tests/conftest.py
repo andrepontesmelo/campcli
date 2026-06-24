@@ -108,6 +108,12 @@ def store(tmp_path):
 
 
 @pytest.fixture
+def profile_repo(tmp_path, clock):
+    from campcli.infrastructure.store import SqliteStore
+    return SqliteStore(tmp_path / "profile_test.db", clock=clock)
+
+
+@pytest.fixture
 def clock():
     return FrozenClock(datetime(2026, 1, 1, 12, 0, 0))
 

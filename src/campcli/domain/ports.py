@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from .models import Map, Park
+from .models import Map, Park, Profile
 
 
 class ApiError(RuntimeError):
@@ -125,4 +125,34 @@ class Telegram(Protocol):
 
     def answer_callback_query(self, query_id: str, text: str | None = None) -> None:
         """Acknowledge a callback query (dismisses loading spinner)."""
+
+
+class ProfileRepo(Protocol):
+    """Repository for managing search profiles.
+
+    Each profile is a named, independently-enabled search configuration.
+    Child data (patterns, parks, telegram IDs) is stored in sibling tables
+    and resolved by the repository.
+    """
+
+    def create(self, profile: Profile) -> Profile:
+        """Insert a new profile. Assigns id, created_at, updated_at."""
+
+    def list_all(self) -> list[Profile]:
+        """Return every profile (enabled and disabled)."""
+
+    def list_enabled(self) -> list[Profile]:
+        """Return only enabled profiles."""
+
+    def get_by_name(self, name: str) -> Profile | None:
+        """Look up a profile by unique name. Returns None if not found."""
+
+    def update(self, profile: Profile) -> Profile:
+        """Persist all fields of an existing profile. Bumps updated_at."""
+
+    def delete(self, name: str) -> bool:
+        """Remove a profile by name. Returns True if a row was deleted."""
+
+    def set_enabled(self, name: str, enabled: bool) -> bool:
+        """Toggle the enabled flag. Returns True if the profile exists."""
 

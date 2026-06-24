@@ -25,6 +25,7 @@ from ..application.throttle import (
 )
 from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH
 from ..domain.booking_window import max_bookable_start
+from ..domain.models import Profile
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..domain.ports import ApiError, RateLimited
@@ -115,6 +116,8 @@ app.add_typer(catalog_app, name="catalog")
 app.add_typer(telegram_app, name="telegram")
 config_app = typer.Typer(no_args_is_help=True, help="Manage global settings.")
 app.add_typer(config_app, name="config")
+profile_app = typer.Typer(no_args_is_help=True, help="Manage search profiles.")
+app.add_typer(profile_app, name="profile")
 
 
 # ----- parks -----------------------------------------------------------------
@@ -339,6 +342,126 @@ def config_show() -> None:
         typer.echo(f"request_interval_secs: {DEFAULT_REQUEST_INTERVAL_SECS}s (default)")
     else:
         typer.echo(f"request_interval_secs: {raw}s")
+
+
+# ----- profile ---------------------------------------------------------------
+
+
+def _confirm_profile_exists(store: SqliteStore, name: str) -> Profile:
+    profile = store.get_by_name(name)
+    if profile is None:
+        typer.echo(f"error: profile {name!r} not found", err=True)
+        raise typer.Exit(code=2)
+    return profile
+
+
+@profile_app.command("create")
+def profile_create(
+    name: str = typer.Argument(..., help="Unique profile name."),
+) -> None:
+    """Create a new search profile with interactive prompts."""
+    store = _store()
+    if store.get_by_name(name) is not None:
+        typer.echo(f"error: profile {name!r} already exists", err=True)
+        raise typer.Exit(code=2)
+
+    max_horizon_months = typer.prompt("Max horizon (months)", default=3, type=int)
+    max_drive_hours = typer.prompt("Max drive (hours)", default=3.0, type=float)
+    raw_date = typer.prompt("Min start date (YYYY-MM-DD, optional)", default="")
+    min_start_date: str | None = raw_date.strip() or None
+    if min_start_date is not None:
+        try:
+            date.fromisoformat(min_start_date)
+        except ValueError:
+            typer.echo(f"error: invalid date {min_start_date!r}", err=True)
+            raise typer.Exit(code=2)
+    rest_days = typer.prompt("Rest days between bookings", default=14, type=int)
+
+    # TODO: Add interactive prompts for patterns, parks, telegram IDs
+    #       in slice 7e85bx3w.
+
+    profile = Profile(
+        name=name,
+        max_horizon_months=max_horizon_months,
+        max_drive_hours=max_drive_hours,
+        min_start_date=min_start_date,
+        rest_days_between_bookings=rest_days,
+    )
+    created = store.create(profile)
+    typer.echo(f"profile {name!r} created (id={created.id})")
+
+
+@profile_app.command("list")
+def profile_list() -> None:
+    """List all profiles with key fields."""
+    store = _store()
+    profiles = store.list_all()
+    if not profiles:
+        typer.echo("no profiles")
+        return
+    header = f"{'Name':<24} {'Enabled':<9} {'Horizon':<9} {'Drive':<9} {'Rest':<6} {'Created'}"
+    typer.echo(header)
+    typer.echo("-" * len(header))
+    for p in profiles:
+        enabled = "yes" if p.enabled else "no"
+        created = p.created_at[:10] if p.created_at else "-"
+        typer.echo(
+            f"{p.name:<24} {enabled:<9} {p.max_horizon_months:<9} "
+            f"{p.max_drive_hours:<9} {p.rest_days_between_bookings:<6} {created}"
+        )
+
+
+@profile_app.command("show")
+def profile_show(
+    name: str = typer.Argument(..., help="Profile name."),
+) -> None:
+    """Show full profile details."""
+    store = _store()
+    profile = _confirm_profile_exists(store, name)
+    typer.echo(f"name:                         {profile.name}")
+    typer.echo(f"enabled:                      {'yes' if profile.enabled else 'no'}")
+    typer.echo(f"max_horizon_months:           {profile.max_horizon_months}")
+    typer.echo(f"max_drive_hours:              {profile.max_drive_hours}")
+    typer.echo(f"min_start_date:               {profile.min_start_date or '-'}")
+    typer.echo(f"rest_days_between_bookings:   {profile.rest_days_between_bookings}")
+    typer.echo(f"patterns:                     {profile.patterns or '-'}")
+    typer.echo(f"parks:                        {profile.parks or '-'}")
+    typer.echo(f"tg_allowed_ids:               {profile.tg_allowed_ids or '-'}")
+    typer.echo(f"created_at:                   {profile.created_at or '-'}")
+    typer.echo(f"updated_at:                   {profile.updated_at or '-'}")
+
+
+@profile_app.command("enable")
+def profile_enable(
+    name: str = typer.Argument(..., help="Profile name."),
+) -> None:
+    """Enable a profile."""
+    store = _store()
+    _confirm_profile_exists(store, name)
+    store.set_enabled(name, True)
+    typer.echo(f"profile {name!r} enabled")
+
+
+@profile_app.command("disable")
+def profile_disable(
+    name: str = typer.Argument(..., help="Profile name."),
+) -> None:
+    """Disable a profile."""
+    store = _store()
+    _confirm_profile_exists(store, name)
+    store.set_enabled(name, False)
+    typer.echo(f"profile {name!r} disabled")
+
+
+@profile_app.command("delete")
+def profile_delete(
+    name: str = typer.Argument(..., help="Profile name."),
+) -> None:
+    """Delete a profile permanently."""
+    store = _store()
+    _confirm_profile_exists(store, name)
+    store.delete(name)
+    typer.echo(f"profile {name!r} deleted")
 
 
 # ----- telegram --------------------------------------------------------------
