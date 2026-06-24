@@ -806,7 +806,7 @@ def not_interested_add(
     try:
         store.add(profile.id, park.park_id, start, end)
     except ValueError:
-        typer.echo("Already marked not interested", err=True)
+        typer.echo("Already marked not interested.", err=True)
         raise typer.Exit(code=2)
     typer.echo(
         f"Marked {park.name} as not interested ({start} – {end}) "

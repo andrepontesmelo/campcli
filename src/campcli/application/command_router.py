@@ -30,7 +30,7 @@ def _cmd_not_interested(update: TelegramUpdate, poller: Poller) -> DispatchResul
         return {"type": "reply", "text": "NotInterested is not configured."}
     entry = ni_repo.lookup_sent(update.reply_to_message_id)
     if entry is None:
-        return {"type": "reply", "text": "Could not find the notification for this message."}
+        return {"type": "reply", "text": "Could not find the notification for this message (may have been purged)."}
     profile_id, park_id, date_start, date_end = entry
     profile = poller._profile_repo.get_by_id(profile_id)
     if profile is None:
