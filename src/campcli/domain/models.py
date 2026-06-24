@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime
 from typing import NamedTuple
 
@@ -42,19 +43,113 @@ class WeekendMatch(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Temporary stubs — replaced with proper entities from child tables
-# in slice 7e85bx3w.
+# Pattern spec — parsed search pattern
 # ---------------------------------------------------------------------------
 
 
 class PatternSpec(NamedTuple):
-    """Placeholder — populated from profile_patterns table (slice 7e85bx3w)."""
-    pass
+    """A parsed search pattern — weekday, span, min/max nights."""
+
+    weekday: int
+    span_nights: int
+    min_nights: int
+    max_nights: int
+
+
+_WEEKDAYS: dict[str, int] = {
+    "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6,
+}
+
+
+def parse_pattern(s: str) -> PatternSpec:
+    """Parse ``"fri-sun"`` → ``(4, 2, 2, 2)`` or ``"fri-mon:2-3"`` → ``(4, 3, 2, 3)``.
+
+    Returns ``(start_weekday, span_nights, min_nights, max_nights)``.
+    Raises ``ValueError`` for invalid patterns.
+    """
+    # Extract optional :min-max suffix.
+    suffix: str | None = None
+    if ":" in s:
+        s_part, suffix_str = s.split(":", 1)
+        suffix = suffix_str
+    else:
+        s_part = s
+
+    parts = s_part.split("-")
+    if len(parts) != 2:
+        raise ValueError(
+            f"invalid pattern {s!r}: expected 'day-day' format "
+            f"(e.g. 'fri-sun')"
+        )
+    start_str, end_str = parts
+    start = _WEEKDAYS.get(start_str.lower())
+    end = _WEEKDAYS.get(end_str.lower())
+    if start is None:
+        raise ValueError(
+            f"invalid pattern {s!r}: unknown day {start_str!r} "
+            f"(expected mon/tue/wed/thu/fri/sat/sun)"
+        )
+    if end is None:
+        raise ValueError(
+            f"invalid pattern {s!r}: unknown day {end_str!r} "
+            f"(expected mon/tue/wed/thu/fri/sat/sun)"
+        )
+    if end == start:
+        raise ValueError(
+            f"invalid pattern {s!r}: end day {end_str} must come after "
+            f"start day {start_str} (same-day pattern)"
+        )
+    span_nights = (end - start) % 7
+    if span_nights > 5:
+        raise ValueError(
+            f"invalid pattern {s!r}: span too long — {span_nights} nights "
+            f"exceeds maximum of 5 (week-wrap not allowed)"
+        )
+
+    if suffix is not None:
+        mm = re.fullmatch(r"(\d+)-(\d+)", suffix)
+        if mm is None:
+            raise ValueError(
+                f"invalid pattern {s!r}: malformed min-max suffix "
+                f"{suffix!r} (expected format like '2-3')"
+            )
+        min_nights = int(mm.group(1))
+        max_nights = int(mm.group(2))
+        if min_nights < 1:
+            raise ValueError(
+                f"invalid pattern {s!r}: min_nights ({min_nights}) "
+                f"must be >= 1"
+            )
+        if min_nights > max_nights:
+            raise ValueError(
+                f"invalid pattern {s!r}: min_nights ({min_nights}) "
+                f"must be <= max_nights ({max_nights})"
+            )
+        if max_nights > span_nights:
+            raise ValueError(
+                f"invalid pattern {s!r}: max_nights ({max_nights}) "
+                f"exceeds span_nights ({span_nights})"
+            )
+    else:
+        min_nights = max_nights = span_nights
+
+    return PatternSpec(start, span_nights, min_nights, max_nights)
+
+
+# ---------------------------------------------------------------------------
+# Park query — a (park, optional map) filter for a profile
+# ---------------------------------------------------------------------------
 
 
 class ParkQuery(NamedTuple):
-    """Placeholder — populated from profile_parks table (slice 7e85bx3w)."""
-    pass
+    """A (park, optional map) query filter for a profile.
+
+    ``park_query`` is a park name or partial match string.
+    ``map_query`` is an optional map (sub-area) name filter.
+    """
+
+    park_query: str
+    map_query: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -80,8 +175,8 @@ class Profile(BaseModel):
     enabled: bool = True
     created_at: str | None = None
     updated_at: str | None = None
-    patterns: list = Field(default_factory=list)
-    parks: list = Field(default_factory=list)
+    patterns: list[PatternSpec] = Field(default_factory=list)
+    parks: list[ParkQuery] = Field(default_factory=list)
     tg_allowed_ids: list[int] = Field(default_factory=list)
 
 

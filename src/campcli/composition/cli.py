@@ -25,7 +25,7 @@ from ..application.throttle import (
 )
 from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH
 from ..domain.booking_window import max_bookable_start
-from ..domain.models import Profile
+from ..domain.models import PatternSpec, Profile
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..domain.ports import ApiError, RateLimited
@@ -377,9 +377,6 @@ def profile_create(
             raise typer.Exit(code=2)
     rest_days = typer.prompt("Rest days between bookings", default=14, type=int)
 
-    # TODO: Add interactive prompts for patterns, parks, telegram IDs
-    #       in slice 7e85bx3w.
-
     profile = Profile(
         name=name,
         max_horizon_months=max_horizon_months,
@@ -389,6 +386,42 @@ def profile_create(
     )
     created = store.create(profile)
     typer.echo(f"profile {name!r} created (id={created.id})")
+
+    # Interactive prompts for child rows.
+    from ..domain.models import parse_pattern
+    typer.echo("")
+    typer.echo("Add patterns (one per line, blank to finish):")
+    while True:
+        raw = typer.prompt("Pattern", default="", show_default=False)
+        if not raw:
+            break
+        try:
+            parse_pattern(raw)  # validate before inserting
+        except ValueError as e:
+            typer.echo(f"  (skipped: {e})", err=True)
+            continue
+        sort = len(store.list_patterns(name))
+        store.add_pattern(name, raw, sort_order=sort)
+
+    typer.echo("")
+    typer.echo("Add park filters (one per line, blank to finish):")
+    while True:
+        park = typer.prompt("Park name", default="", show_default=False)
+        if not park:
+            break
+        map_q = typer.prompt("Map name (optional)", default="", show_default=False)
+        store.add_park(name, park, map_q.strip() or None)
+
+    typer.echo("")
+    typer.echo("Add Telegram user IDs (one per line, blank to finish):")
+    while True:
+        raw = typer.prompt("Telegram ID", default="", show_default=False)
+        if not raw:
+            break
+        try:
+            store.add_tg_id(name, int(raw))
+        except ValueError:
+            typer.echo(f"  (skipped: {raw!r} is not a number)", err=True)
 
 
 @profile_app.command("list")
@@ -424,8 +457,8 @@ def profile_show(
     typer.echo(f"max_drive_hours:              {profile.max_drive_hours}")
     typer.echo(f"min_start_date:               {profile.min_start_date or '-'}")
     typer.echo(f"rest_days_between_bookings:   {profile.rest_days_between_bookings}")
-    typer.echo(f"patterns:                     {profile.patterns or '-'}")
-    typer.echo(f"parks:                        {profile.parks or '-'}")
+    typer.echo(f"patterns:                     {[_pattern_to_raw(p) for p in profile.patterns] or '-'}")
+    typer.echo(f"parks:                        {[(pq.park_query, pq.map_query) for pq in profile.parks] or '-'}")
     typer.echo(f"tg_allowed_ids:               {profile.tg_allowed_ids or '-'}")
     typer.echo(f"created_at:                   {profile.created_at or '-'}")
     typer.echo(f"updated_at:                   {profile.updated_at or '-'}")
@@ -464,77 +497,138 @@ def profile_delete(
     typer.echo(f"profile {name!r} deleted")
 
 
-# ----- telegram --------------------------------------------------------------
+# ----- profile tg-* commands -------------------------------------------------
 
-@telegram_app.command("allow")
-def telegram_allow(
-    tg_ids: list[int] = typer.Argument(..., help="Telegram user ID(s) to authorize."),
+
+@profile_app.command("tg-add")
+def profile_tg_add(
+    name: str = typer.Argument(..., help="Profile name."),
+    tg_id: int = typer.Argument(..., help="Telegram user ID to authorize."),
 ) -> None:
-    """Add one or more Telegram user IDs to the authorized list."""
-    profile_path = CONFIG_DIR / "profile.json"
-    if not profile_path.exists():
-        typer.echo("error: profile.json not found", err=True)
-        raise typer.Exit(code=2)
-    import json
-    raw = json.loads(profile_path.read_text())
-    allowed = raw.get("tg_allowed_ids", [])
-    added = []
-    for tid in tg_ids:
-        if tid in allowed:
-            continue
-        allowed.append(tid)
-        added.append(tid)
-    raw["tg_allowed_ids"] = allowed
-    profile_path.write_text(json.dumps(raw, indent=2) + "\n")
-    if added:
-        typer.echo(f"authorized: {', '.join(str(t) for t in added)}")
+    """Add a Telegram user ID to a profile."""
+    store = _store()
+    _confirm_profile_exists(store, name)
+    store.add_tg_id(name, tg_id)
+    typer.echo(f"Telegram ID {tg_id} added to profile {name!r}")
+
+
+@profile_app.command("tg-rm")
+def profile_tg_rm(
+    name: str = typer.Argument(..., help="Profile name."),
+    tg_id: int = typer.Argument(..., help="Telegram user ID to remove."),
+) -> None:
+    """Remove a Telegram user ID from a profile."""
+    store = _store()
+    _confirm_profile_exists(store, name)
+    if store.remove_tg_id(name, tg_id):
+        typer.echo(f"Telegram ID {tg_id} removed from profile {name!r}")
     else:
-        typer.echo("all IDs already authorized")
+        typer.echo(f"Telegram ID {tg_id} not found in profile {name!r}", err=True)
+        raise typer.Exit(code=2)
 
 
-@telegram_app.command("revoke")
-def telegram_revoke(
-    tg_ids: list[int] = typer.Argument(..., help="Telegram user ID(s) to revoke."),
+@profile_app.command("tg-list")
+def profile_tg_list(
+    name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
-    """Remove one or more Telegram user IDs from the authorized list."""
-    profile_path = CONFIG_DIR / "profile.json"
-    if not profile_path.exists():
-        typer.echo("error: profile.json not found", err=True)
-        raise typer.Exit(code=2)
-    import json
-    raw = json.loads(profile_path.read_text())
-    allowed = raw.get("tg_allowed_ids", [])
-    removed = []
-    not_found = []
-    for tid in tg_ids:
-        if tid in allowed:
-            allowed.remove(tid)
-            removed.append(tid)
-        else:
-            not_found.append(tid)
-    raw["tg_allowed_ids"] = allowed
-    profile_path.write_text(json.dumps(raw, indent=2) + "\n")
-    if removed:
-        typer.echo(f"revoked: {', '.join(str(t) for t in removed)}")
-    for tid in not_found:
-        typer.echo(f"{tid} not found in authorized list")
-
-
-@telegram_app.command("list")
-def telegram_list() -> None:
-    """List authorized Telegram users."""
-    profile_path = CONFIG_DIR / "profile.json"
-    if not profile_path.exists():
-        typer.echo("error: profile.json not found", err=True)
-        raise typer.Exit(code=2)
-    import json
-    raw = json.loads(profile_path.read_text())
-    allowed = raw.get("tg_allowed_ids", [])
-    if not allowed:
-        typer.echo("no authorized telegram users")
+    """List Telegram user IDs authorized for a profile."""
+    store = _store()
+    _confirm_profile_exists(store, name)
+    ids = store.list_tg_ids(name)
+    if not ids:
+        typer.echo(f"no Telegram IDs authorized for profile {name!r}")
         return
-    for tid in allowed:
+    for tid in ids:
         typer.echo(str(tid))
+
+
+# ----- profile edit ----------------------------------------------------------
+
+
+@profile_app.command("edit")
+def profile_edit(
+    name: str = typer.Argument(..., help="Profile name."),
+) -> None:
+    """Edit a profile interactively — add/remove patterns, parks, Telegram IDs."""
+    store = _store()
+    _confirm_profile_exists(store, name)
+
+    while True:
+        # Show current state
+        pats = store.list_patterns(name)
+        parks = store.list_parks(name)
+        tg_ids = store.list_tg_ids(name)
+        typer.echo("")
+        typer.echo(f"Editing profile {name!r}:")
+        for p in pats:
+            raw = _pattern_to_raw(p)
+            typer.echo(f"  pattern:      {raw}")
+        for pq in parks:
+            parts = pq.park_query
+            if pq.map_query:
+                parts = f"{pq.park_query} (map: {pq.map_query})"
+            typer.echo(f"  park:         {parts}")
+        for tid in tg_ids:
+            typer.echo(f"  tg_id:        {tid}")
+        typer.echo("")
+        typer.echo("What would you like to do?")
+        typer.echo("  1) Add a pattern")
+        typer.echo("  2) Remove a pattern")
+        typer.echo("  3) Add a park")
+        typer.echo("  4) Remove a park")
+        typer.echo("  5) Add a Telegram ID")
+        typer.echo("  6) Remove a Telegram ID")
+        typer.echo("  7) Done")
+
+        choice = typer.prompt("Choice", default="7")
+        if choice == "1":
+            raw = typer.prompt("Pattern (e.g. 'fri-sun' or 'fri-mon:2-3')")
+            store.add_pattern(name, raw)
+            typer.echo(f"pattern {raw!r} added")
+        elif choice == "2":
+            raw = typer.prompt("Pattern to remove")
+            if store.remove_pattern(name, raw):
+                typer.echo(f"pattern {raw!r} removed")
+            else:
+                typer.echo(f"pattern {raw!r} not found", err=True)
+        elif choice == "3":
+            park = typer.prompt("Park name or query")
+            map_q = typer.prompt("Map name (optional)", default="")
+            map_q = map_q.strip() or None
+            store.add_park(name, park, map_q)
+            typer.echo(f"park {park!r} added")
+        elif choice == "4":
+            park = typer.prompt("Park query to remove")
+            if store.remove_park(name, park):
+                typer.echo(f"park {park!r} removed")
+            else:
+                typer.echo(f"park {park!r} not found", err=True)
+        elif choice == "5":
+            tg_id = typer.prompt("Telegram ID", type=int)
+            store.add_tg_id(name, tg_id)
+            typer.echo(f"Telegram ID {tg_id} added")
+        elif choice == "6":
+            tg_id = typer.prompt("Telegram ID", type=int)
+            if store.remove_tg_id(name, tg_id):
+                typer.echo(f"Telegram ID {tg_id} removed")
+            else:
+                typer.echo(f"Telegram ID {tg_id} not found", err=True)
+        elif choice == "7":
+            typer.echo("done")
+            break
+        else:
+            typer.echo("invalid choice", err=True)
+
+
+def _pattern_to_raw(p: PatternSpec) -> str:
+    """Reverse a PatternSpec back to its pattern string."""
+    days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    start = days[p.weekday]
+    end = days[(p.weekday + p.span_nights) % 7]
+    base = f"{start}-{end}"
+    if p.min_nights != p.max_nights or p.min_nights != p.span_nights:
+        return f"{base}:{p.min_nights}-{p.max_nights}"
+    return base
 
 
 # ----- daemon ----------------------------------------------------------------

@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from .models import Map, Park, Profile
+from .models import Map, Park, ParkQuery, PatternSpec, Profile
 
 
 class ApiError(RuntimeError):
@@ -155,4 +155,33 @@ class ProfileRepo(Protocol):
 
     def set_enabled(self, name: str, enabled: bool) -> bool:
         """Toggle the enabled flag. Returns True if the profile exists."""
+
+    # ---- child CRUD -------------------------------------------------------
+
+    def add_pattern(self, profile_name: str, pattern: str, sort_order: int = 0) -> None:
+        """Add a pattern to a profile. Raises KeyError if profile not found."""
+
+    def remove_pattern(self, profile_name: str, pattern: str) -> bool:
+        """Remove a pattern from a profile. Returns True if a row was deleted."""
+
+    def list_patterns(self, profile_name: str) -> list[PatternSpec]:
+        """Return patterns for a profile (sorted by sort_order)."""
+
+    def add_park(self, profile_name: str, park_query: str, map_query: str | None = None) -> None:
+        """Add a park query to a profile. Raises KeyError if profile not found."""
+
+    def remove_park(self, profile_name: str, park_query: str) -> bool:
+        """Remove a park query from a profile. Returns True if a row was deleted."""
+
+    def list_parks(self, profile_name: str) -> list[ParkQuery]:
+        """Return park queries for a profile."""
+
+    def add_tg_id(self, profile_name: str, tg_id: int) -> None:
+        """Add a Telegram ID to a profile. Raises KeyError if profile not found."""
+
+    def remove_tg_id(self, profile_name: str, tg_id: int) -> bool:
+        """Remove a Telegram ID from a profile. Returns True if a row was deleted."""
+
+    def list_tg_ids(self, profile_name: str) -> list[int]:
+        """Return Telegram IDs for a profile."""
 
