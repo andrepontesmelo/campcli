@@ -441,7 +441,7 @@ class TestSearchProfileAware:
                     result = runner.invoke(app, ["search"])
 
         assert result.exit_code in (0, 3)
-        assert "using profile 'solo'" in result.stderr
+        assert "Profile: solo" in result.stderr
 
     def test_search_no_enabled_profiles_errors(self, tmp_path):
         """0 enabled → clear error."""
@@ -589,7 +589,61 @@ class TestSearchProfileAware:
                         result = runner.invoke(app, ["search"])
 
         assert result.exit_code in (0, 3)
-        assert "using profile 'default'" in result.stderr
+        assert "Profile: default" in result.stderr
+
+    def test_search_with_disabled_profile_errors(self, tmp_path):
+        """--profile disabled → error."""
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "disabled"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            runner.invoke(app, ["profile", "disable", "disabled"])
+
+            result = runner.invoke(app, ["search", "--profile", "disabled"])
+
+        assert result.exit_code == 2
+        assert "is disabled" in result.stderr
+
+    def test_check_with_disabled_profile_errors(self, tmp_path):
+        """campcli check --profile disabled → error."""
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            runner.invoke(
+                app, ["profile", "create", "disabled"],
+                input="3\n3.0\n\n14\n\n\n\n",
+            )
+            runner.invoke(app, ["profile", "disable", "disabled"])
+
+            result = runner.invoke(app, [
+                "check", "--park", "1", "--start", "2026-07-01",
+                "--nights", "2", "--profile", "disabled",
+            ])
+
+        assert result.exit_code == 2
+        assert "is disabled" in result.stderr
+
+    def test_check_with_unknown_profile_errors(self, tmp_path):
+        """campcli check --profile nonexistent → error."""
+        db = tmp_path / "state.db"
+        from campcli.composition import cli as cli_mod
+        from unittest.mock import patch
+
+        with patch.object(cli_mod, "DB_PATH", db):
+            result = runner.invoke(app, [
+                "check", "--park", "1", "--start", "2026-07-01",
+                "--nights", "2", "--profile", "nonexistent",
+            ])
+
+        assert result.exit_code == 2
+        assert "not found" in result.stderr
 
 
 class TestNotInterestedCli:
