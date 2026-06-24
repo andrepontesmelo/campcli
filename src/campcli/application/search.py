@@ -16,7 +16,7 @@ from .drive_times import DriveTimes
 from ..domain.models import Park, WeekendMatch
 from ..domain.ports import BCParksApi
 from .pricing import fee_per_night
-from .profile import Profile
+from .profile import PatternSpec, Profile
 
 _EXPLOSION_THRESHOLD = 10
 
@@ -50,7 +50,7 @@ def _emit_windows_for_anchor(
 def _enumerate_pattern(
     today: date,
     end: date,
-    pattern: tuple[int, int, int, int],
+    pattern: PatternSpec,
     min_start: date | None,
     max_start: date | None,
 ) -> list[tuple[date, int]]:

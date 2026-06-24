@@ -13,7 +13,7 @@ import json
 import re
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from pydantic import BaseModel, Field
 
@@ -32,7 +32,19 @@ _WEEKDAYS: dict[str, int] = {
 }
 
 
-def parse_pattern(s: str) -> tuple[int, int, int, int]:
+class PatternSpec(NamedTuple):
+    """A parsed search pattern — weekday, span, min/max nights.
+
+    Returned by :func:`parse_pattern` and used by :meth:`Profile.pattern_tuples`.
+    """
+
+    weekday: int
+    span_nights: int
+    min_nights: int
+    max_nights: int
+
+
+def parse_pattern(s: str) -> PatternSpec:
     """Parse ``"fri-sun"`` → ``(4, 2, 2, 2)`` or ``"fri-mon:2-3"`` → ``(4, 3, 2, 3)``.
 
     Returns ``(start_weekday, span_nights, min_nights, max_nights)``.
@@ -104,7 +116,7 @@ def parse_pattern(s: str) -> tuple[int, int, int, int]:
     else:
         min_nights = max_nights = span_nights
 
-    return start, span_nights, min_nights, max_nights
+    return PatternSpec(start, span_nights, min_nights, max_nights)
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +153,7 @@ class Profile(BaseModel):
 
     # ---- derived helpers ---------------------------------------------------
 
-    def pattern_tuples(self) -> list[tuple[int, int, int, int]]:
+    def pattern_tuples(self) -> list[PatternSpec]:
         """Return patterns as ``[(weekday, span_nights, min_nights, max_nights), …]``."""
         return [parse_pattern(p) for p in self.patterns]
 
