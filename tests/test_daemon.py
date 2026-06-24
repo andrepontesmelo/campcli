@@ -6,16 +6,26 @@ composition-root wiring: migration runs, profiles are loaded from the DB.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 from campcli.application.migrate_profile import migrate_profile_json_to_db
 
 
+class _FrozenClock:
+    def now(self) -> datetime:
+        return datetime(2026, 1, 1, 12, 0, 0)
+
+
 class TestDaemonMigrationWiring:
     def test_migration_called_at_startup(self, tmp_path: Path) -> None:
         """Simulate daemon startup with profile.json present → migration occurs."""
+        from campcli.application.drive_times import DriveTimes
+        from campcli.application.poller import Poller
+        from campcli.domain.models import Profile
         from campcli.infrastructure.store import SqliteStore
+        from conftest import FakeBCParksApi, FakeTelegram, FakeSearchNotifier
 
         # Arrange: create profile.json inside a temporary config dir.
         config_dir = tmp_path / ".campcli"
@@ -43,3 +53,25 @@ class TestDaemonMigrationWiring:
         assert default.tg_allowed_ids == [12345]
         assert not json_path.exists()
         assert db_path.exists()
+
+        # --- Poller wiring check ---
+        # Add a park so the Poller has something to search.
+        store.add_park("default", "Bowron Lake")
+
+        fake_api = FakeBCParksApi()
+        poller = Poller(
+            api=fake_api,
+            telegram=FakeTelegram(),
+            notifier_factory=lambda _: FakeSearchNotifier(),
+            settings_repo=store,
+            clock=_FrozenClock(),
+            drive_times=DriveTimes.empty(),
+            profile_repo=store,
+            not_interested_repo=store,
+        )
+        poller.run_search_once()
+
+        assert any(
+            call[0] == 1 and call[1] == 10
+            for call in fake_api.map_availability_calls
+        ), "Poller should call map_availability for the migrated profile's park"

@@ -108,6 +108,7 @@ class Poller:
         # ------------------------------------------------------------------
         pair_to_profiles: dict[tuple[int, int], list[Profile]] = {}
         seen_pair: set[tuple[int, int, int]] = set()  # (park_id, map_id, profile_id)
+        map_cache: dict[tuple[int, int], object] = {}
 
         for profile in profiles:
             for pq in profile.parks:
@@ -145,6 +146,7 @@ class Poller:
                     for m in maps:
                         if "walk-in" in m.name.lower() or "walk in" in m.name.lower():
                             continue
+                        map_cache[(park.park_id, m.map_id)] = m
                         key = (park.park_id, m.map_id)
                         sp = (park.park_id, m.map_id, profile.id)
                         if sp not in seen_pair:
@@ -160,7 +162,6 @@ class Poller:
         # ------------------------------------------------------------------
         all_parks = self._api.list_parks()
         park_cache: dict[int, Park] = {p.park_id: p for p in all_parks}
-        map_cache: dict[tuple[int, int], object] = {}
         for (park_id, map_id) in pair_to_profiles:
             if (park_id, map_id) not in map_cache:
                 maps = self._api.list_maps(park_id)
