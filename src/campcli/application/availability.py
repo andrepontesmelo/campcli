@@ -53,6 +53,43 @@ def check_map(
     return out
 
 
+def check_map_from_data(
+    park: Park,
+    m: Map,
+    start: date,
+    nights: int,
+    resources: dict[int, list[dict]],
+) -> list[AvailableSite]:
+    """Check availability for a window against pre-fetched ``map_availability`` data.
+
+    ``resources`` is the raw ``{site_id: [slot_dicts]}`` returned by
+    ``BCParksApi.map_availability()`` for a wider date range.  Only slots
+    whose ``date`` falls within the window are considered.
+    """
+    end = start + timedelta(days=nights)
+    out: list[AvailableSite] = []
+    for site_id, slots in resources.items():
+        window_slots = [
+            s for s in slots
+            if start <= date.fromisoformat(s["date"]) < end
+        ]
+        if not _is_available(window_slots):
+            continue
+        out.append(
+            AvailableSite(
+                park_id=park.park_id,
+                park_name=park.name,
+                map_id=m.map_id,
+                map_name=m.name,
+                site_id=site_id,
+                site_name=_site_name(slots[0]) if slots else None,
+                start_date=start,
+                end_date=end,
+            )
+        )
+    return out
+
+
 def check_park(
     api: BCParksApi,
     park: Park,

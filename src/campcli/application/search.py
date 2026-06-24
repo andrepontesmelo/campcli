@@ -1,4 +1,4 @@
-"""Search orchestration for the `campcli search` command.
+"""Search orchestration for the ``campcli search`` command.
 
 Expands profile patterns into concrete (start_date, nights) windows across
 a horizon, fans out availability checks across drive-time-filtered parks,
@@ -12,11 +12,11 @@ from datetime import date, timedelta
 from . import catalog
 from .availability import check_map
 from ..domain.booking_window import max_bookable_start
+from .catalog import resolve_profile_parks
 from .drive_times import DriveTimes
-from ..domain.models import Park, WeekendMatch
+from ..domain.models import Park, PatternSpec, Profile, WeekendMatch
 from ..domain.ports import BCParksApi
 from .pricing import fee_per_night
-from .profile import PatternSpec, Profile
 
 _EXPLOSION_THRESHOLD = 10
 
@@ -93,14 +93,14 @@ def expand_windows(
     horizon_days = profile.max_horizon_months * 30
     end = today + timedelta(days=horizon_days)
     out: list[tuple[date, int]] = []
-    patterns = profile.pattern_tuples()
+    patterns = profile.patterns  # list[PatternSpec]
     for i, pattern in enumerate(patterns):
         pattern_windows = _enumerate_pattern(
             today, end, pattern, min_start, max_start,
         )
         if len(pattern_windows) > _EXPLOSION_THRESHOLD and warn is not None:
             warn(
-                f"warning: pattern #{i} {profile.patterns[i]!r} expanded to "
+                f"warning: pattern #{i} {pattern!r} expanded to "
                 f"{len(pattern_windows)} windows (threshold="
                 f"{_EXPLOSION_THRESHOLD}); consider tightening the span"
             )
@@ -108,7 +108,7 @@ def expand_windows(
     return out
 
 
-def _is_covered(
+def is_covered(
     start: date,
     nights: int,
     accepted: list[tuple[date, int]],
@@ -145,7 +145,11 @@ def run(
     decides what to do with each (notify, collect, render).
     """
     today = today or date.today()
-    min_start = profile.min_start_date_parsed()
+    min_start = (
+        date.fromisoformat(profile.min_start_date)
+        if profile.min_start_date
+        else None
+    )
     windows = expand_windows(
         today, profile,
         max_start=max_bookable_start(today),
@@ -192,7 +196,7 @@ def run(
             map_windows = sorted(windows, key=lambda w: (w[0], -w[1]))
             for start, nights in map_windows:
                 # Skip if a longer stay already covers this candidate's range.
-                if _is_covered(start, nights, accepted_ranges):
+                if is_covered(start, nights, accepted_ranges):
                     continue
                 try:
                     sites = check_map(api, park, m, start, nights, party_size=1)

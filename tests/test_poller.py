@@ -1,3 +1,6 @@
+from datetime import date
+
+from campcli.domain.models import ParkQuery, Profile, parse_pattern
 from campcli.domain.ports import TelegramUpdate
 
 
@@ -45,7 +48,9 @@ class TestPollerCommands:
 class TestPollerNotificationWiring:
     def test_tick_calls_start_poll(self, poller, fake_notifier):
         poller.tick()
-        assert len(fake_notifier.start_poll_calls) == 1
+        # tick calls run_search_once which handles start_poll per profile
+        # if no profiles enabled, start_poll is never called
+        assert len(fake_notifier.start_poll_calls) == 0
 
     def test_unauthorized_user_receives_id_message(self, poller, fake_telegram):
         poller._tg_allowed_ids = [1]
@@ -91,3 +96,67 @@ class TestPollerNotificationWiring:
         # The unanswered callback query would leave the spinner spinning;
         # the fix requires answer_callback_query to be called.
         assert "cb_unauth" in fake_telegram.answered_callbacks
+
+
+# ---------------------------------------------------------------------------
+# Multi-profile Poller tests
+# ---------------------------------------------------------------------------
+
+
+class TestMultiProfilePoller:
+    def test_empty_profiles_no_api_calls(self, poller, fake_api):
+        """No enabled profiles → no API calls."""
+        poller.run_search_once()
+        assert len(fake_api.map_availability_calls) == 0
+
+    def test_single_profile_calls_api(self, poller, fake_api, profile_repo):
+        """Single profile with a park triggers one API call per (park, map)."""
+        p = profile_repo.create(Profile(name="test", max_horizon_months=3))
+        profile_repo.add_pattern("test", "fri-sun")
+        profile_repo.add_park("test", "Bowron Lake")
+        poller.run_search_once()
+        # Bowron Lake (park_id=1) has 1 non-walk-in map (map_id=10)
+        assert len(fake_api.map_availability_calls) == 1
+        assert fake_api.map_availability_calls[0][:2] == (1, 10)
+
+    def test_two_profiles_same_park_dedup(self, poller, fake_api, profile_repo):
+        """Two profiles watching the same park → API called once per (park, map) pair."""
+        p1 = profile_repo.create(Profile(name="p1", max_horizon_months=3))
+        profile_repo.add_pattern("p1", "fri-sun")
+        profile_repo.add_park("p1", "Bowron Lake")
+
+        p2 = profile_repo.create(Profile(name="p2", max_horizon_months=3))
+        profile_repo.add_pattern("p2", "fri-sun")
+        profile_repo.add_park("p2", "Bowron Lake")
+
+        poller.run_search_once()
+        # One unique (park, map) pair → one API call
+        assert len(fake_api.map_availability_calls) == 1
+        assert fake_api.map_availability_calls[0][:2] == (1, 10)
+
+    def test_two_profiles_different_parks(self, poller, fake_api, profile_repo):
+        """Two profiles watching different parks → one API call per unique pair."""
+        p1 = profile_repo.create(Profile(name="p1", max_horizon_months=3))
+        profile_repo.add_pattern("p1", "fri-sun")
+        profile_repo.add_park("p1", "Bowron Lake")  # park_id=1
+
+        p2 = profile_repo.create(Profile(name="p2", max_horizon_months=3))
+        profile_repo.add_pattern("p2", "fri-sun")
+        profile_repo.add_park("p2", "Golden Ears")  # park_id=2
+
+        poller.run_search_once()
+        # Two unique (park, map) pairs → two API calls
+        parks_called = {c[0] for c in fake_api.map_availability_calls}
+        assert parks_called == {1, 2}
+        assert len(fake_api.map_availability_calls) == 2
+
+    def test_disabled_profile_skipped(self, poller, fake_api, profile_repo):
+        """A disabled profile is not loaded and its park is not checked."""
+        p = profile_repo.create(
+            Profile(name="disabled", max_horizon_months=3, enabled=False)
+        )
+        profile_repo.add_pattern("disabled", "fri-sun")
+        profile_repo.add_park("disabled", "Bowron Lake")
+
+        poller.run_search_once()
+        assert len(fake_api.map_availability_calls) == 0

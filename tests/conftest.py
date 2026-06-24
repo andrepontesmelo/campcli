@@ -12,6 +12,7 @@ class FakeBCParksApi:
             Park(park_id=1, name="Bowron Lake", region="Cariboo"),
             Park(park_id=2, name="Golden Ears", region="Lower Mainland"),
         ]
+        self.map_availability_calls: list[tuple[int, int, date, date]] = []
 
     def list_parks(self, *, refresh: bool = False) -> list[Park]:
         return self._parks
@@ -22,6 +23,7 @@ class FakeBCParksApi:
     def map_availability(
         self, *, park_id: int, map_id: int, start: date, end: date, party_size: int = 1
     ) -> dict:
+        self.map_availability_calls.append((park_id, map_id, start, end))
         return {}
 
     def resource_details(self, *, park_id: int, map_id: int) -> dict:
@@ -71,11 +73,14 @@ class FakeSearchNotifier:
         self.start_poll_calls: list[tuple[list, set[int]]] = []
         self.notify_calls: list = []
 
-    def start_poll(self, bookings, blocked_park_ids):
-        self.start_poll_calls.append((bookings, blocked_park_ids))
+    def start_poll(self, booking_starts, blocked_park_ids):
+        self.start_poll_calls.append((booking_starts, blocked_park_ids))
 
     def notify(self, match, *, chat_ids=None):
         self.notify_calls.append(match)
+
+    def set_log(self, _log):
+        pass
 
 
 class FrozenClock:
@@ -124,12 +129,23 @@ def fake_notifier():
 
 
 @pytest.fixture
-def poller(store, clock, fake_api, fake_telegram, fake_notifier):
+def notifier_factory():
+    """Return a factory that creates FakeSearchNotifier instances."""
+
+    def _factory(_profile):
+        return FakeSearchNotifier()
+
+    return _factory
+
+
+@pytest.fixture
+def poller(store, clock, fake_api, fake_telegram, notifier_factory, profile_repo):
     from campcli.application.drive_times import DriveTimes
     from campcli.application.poller import Poller
     return Poller(
         api=fake_api, telegram=fake_telegram,
-        notifier=fake_notifier,
+        notifier_factory=notifier_factory,
         settings_repo=store, clock=clock,
         drive_times=DriveTimes.empty(),
+        profile_repo=profile_repo,
     )

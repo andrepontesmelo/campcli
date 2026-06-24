@@ -5,9 +5,14 @@ lookup logic that operates on already-resolved Domain objects.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .drive_times import DriveTimes
-from ..domain.models import Park
+from ..domain.models import Map, Park, ParkQuery
 from ..domain.ports import BCParksApi
+
+if TYPE_CHECKING:
+    from ..domain.ports import BCParksApi
 
 
 def find_park(parks: list[Park], park_id: int) -> Park | None:
@@ -33,6 +38,47 @@ def resolve_park(api: BCParksApi, query: str) -> Park:
     names = ", ".join(p.name for p in matches[:5])
     more = "" if len(matches) <= 5 else f" (+{len(matches) - 5} more)"
     raise ValueError(f"ambiguous park {query!r}: matches {names}{more} — be more specific")
+
+
+def resolve_map(api: BCParksApi, park_id: int, query: str) -> Map:
+    """Resolve a free-text map name to a Map.
+
+    Case-insensitive exact match. Raises ValueError on no match or ambiguous.
+    """
+    maps = api.list_maps(park_id)
+    q = query.strip().lower()
+    matches = [m for m in maps if m.name.lower() == q]
+    if len(matches) == 1:
+        return matches[0]
+    if not matches:
+        raise ValueError(f"no map matches {query!r} in this park")
+    names = ", ".join(m.name for m in matches[:5])
+    more = "" if len(matches) <= 5 else f" (+{len(matches) - 5} more)"
+    raise ValueError(f"ambiguous map {query!r}: matches {names}{more} — be more specific")
+
+
+def resolve_profile_parks(
+    api: BCParksApi, parks: list[ParkQuery]
+) -> dict[int, set[int] | None]:
+    """Resolve a list of ParkQuery to ``{park_id: {map_id, …} | None}``.
+
+    ``None`` means all non-walk-in maps are permitted for that park.
+    Raises ``ValueError`` for unresolvable park/map names.
+    """
+    resolved: dict[int, set[int] | None] = {}
+    for pq in parks:
+        park = resolve_park(api, pq.park_query)
+        if pq.map_query is not None:
+            m = resolve_map(api, park.park_id, pq.map_query)
+            if park.park_id in resolved:
+                existing = resolved[park.park_id]
+                if existing is not None:
+                    existing.add(m.map_id)
+            else:
+                resolved[park.park_id] = {m.map_id}
+        else:
+            resolved[park.park_id] = None  # all maps
+    return resolved
 
 
 def list_parks_filtered(

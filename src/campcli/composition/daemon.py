@@ -6,49 +6,52 @@ import threading
 import time
 import traceback
 
+from ..constants import DB_PATH, PROFILE_PATH
 from ..infrastructure.api import BCParksClient
 from ..infrastructure.clock import SystemClock
-from ..application.throttle import read_request_interval
-from ..constants import DB_PATH
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
-from ..application.poller import Poller
-from ..application.profile import Profile, load_profile
-from ..application.search_notifier import SearchNotifier
 from ..infrastructure.store import SqliteStore
 from ..infrastructure.telegram import HttpxTelegram
+from ..application.migrate_profile import migrate_profile_json_to_db
+from ..application.poller import Poller
+from ..application.search_notifier import SearchNotifier
+from ..application.throttle import read_request_interval
 
 
 def run_forever(
     *,
     bot_token: str,
     interval_secs: float = 1.0,
-    profile: Profile | None = None,
 ) -> None:
     store = SqliteStore(DB_PATH)
     interval = read_request_interval(store)
     clock = SystemClock()
     drive_times = load_drive_times()
+
+    # --- multi-profile setup ---
+    profile_repo: SqliteStore = store  # SqliteStore satisfies ProfileRepo
+    migrate_profile_json_to_db(PROFILE_PATH, profile_repo)
+
+    def _make_notifier(profile):
+        return SearchNotifier(
+            telegram=telegram,
+            drive_times=drive_times,
+            log=lambda msg: None,  # overridden by poller after construction
+            rest_days=profile.rest_days_between_bookings,
+        )
+
     with (
         HttpxTelegram(token=bot_token) as telegram,
         HttpxTelegram(token=bot_token) as poll_telegram,
         BCParksClient(min_interval_secs=interval) as api,
     ):
-        if profile is None:
-            profile = load_profile(api)
-        notifier = SearchNotifier(
-            telegram=telegram,
-            drive_times=drive_times,
-            log=lambda msg: None,
-            rest_days=profile.rest_days_between_bookings,
-        )
         poller = Poller(
             api=api, telegram=telegram,
-            notifier=notifier,
+            notifier_factory=_make_notifier,
             settings_repo=store, clock=clock,
             drive_times=drive_times,
-            profile=profile,
+            profile_repo=profile_repo,
         )
-        notifier.set_log(poller.log)
         poller.set_poll_telegram(poll_telegram)
         poller.start()
         stop = threading.Event()

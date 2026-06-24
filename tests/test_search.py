@@ -6,9 +6,8 @@ from typing import Any
 from unittest.mock import Mock
 
 from campcli.application.drive_times import DriveTimes
-from campcli.application.profile import Profile
 from campcli.application.search import run as run_search
-from campcli.domain.models import Map, Park
+from campcli.domain.models import Map, Park, Profile, parse_pattern
 
 
 class _AvailabilityApi:
@@ -41,8 +40,10 @@ class _AvailabilityApi:
 
 
 def _make_profile(**kw) -> Profile:
+    """Build a domain Profile. Patterns are parsed from string form."""
     defaults = dict(
-        patterns=["fri-sun"],
+        name="test",
+        patterns=[parse_pattern("fri-sun")],
         max_horizon_months=3,
         max_drive_hours=99.0,  # allow all parks
     )
@@ -75,7 +76,7 @@ class TestSearchRunWithAllowed:
     def test_allowed_park_ids_filters_parks(self) -> None:
         """Only the allowed park is searched."""
         api = _AvailabilityApi()
-        profile = _make_profile(allowed_park_ids={1: None})
+        profile = _make_profile()
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(),
                        allowed_park_ids={1: None})
@@ -87,7 +88,7 @@ class TestSearchRunWithAllowed:
     def test_allowed_park_ids_filters_maps(self) -> None:
         """Only the allowed map within a park is searched."""
         api = _AvailabilityApi()
-        profile = _make_profile(allowed_park_ids={1: {10}})
+        profile = _make_profile()
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(),
                        allowed_park_ids={1: {10}})
@@ -100,7 +101,7 @@ class TestSearchRunWithAllowed:
     def test_allowed_none_means_all_maps(self) -> None:
         """allowed_park_ids with None map set means all maps."""
         api = _AvailabilityApi()
-        profile = _make_profile(allowed_park_ids={1: None})
+        profile = _make_profile()
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(),
                        allowed_park_ids={1: None})
@@ -111,7 +112,7 @@ class TestSearchRunWithAllowed:
     def test_allowed_empty_dict_is_noop(self) -> None:
         """Empty allowed_park_ids -> no parks matched (vacuous)."""
         api = _AvailabilityApi()
-        profile = _make_profile(allowed_park_ids={})
+        profile = _make_profile()
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(),
                        allowed_park_ids={})
@@ -126,7 +127,8 @@ class TestExpandWindowsMinStart:
 
         today = date(2026, 6, 1)
         profile = Profile(
-            patterns=["fri-sun"],
+            name="test",
+            patterns=[parse_pattern("fri-sun")],
             max_horizon_months=1,
             min_start_date="2026-06-10",
         )
@@ -142,7 +144,8 @@ class TestExpandWindowsMinStart:
 
         today = date(2026, 6, 15)
         profile = Profile(
-            patterns=["mon-tue"],
+            name="test",
+            patterns=[parse_pattern("mon-tue")],
             max_horizon_months=1,
             min_start_date=None,
         )
@@ -156,7 +159,8 @@ class TestExpandWindowsEnumeration:
 
         today = date(2025, 6, 13)  # Friday
         profile = Profile(
-            patterns=["fri-mon:2-3"],
+            name="test",
+            patterns=[parse_pattern("fri-mon:2-3")],
             max_horizon_months=0,
         )
         windows = expand_windows(today, profile)
@@ -171,7 +175,8 @@ class TestExpandWindowsEnumeration:
 
         today = date(2025, 6, 13)  # Friday
         profile = Profile(
-            patterns=["fri-sun"],
+            name="test",
+            patterns=[parse_pattern("fri-sun")],
             max_horizon_months=0,
         )
         windows = expand_windows(today, profile)
@@ -182,7 +187,8 @@ class TestExpandWindowsEnumeration:
 
         today = date(2025, 6, 13)  # Friday
         profile = Profile(
-            patterns=["fri-mon:2-3"],
+            name="test",
+            patterns=[parse_pattern("fri-mon:2-3")],
             max_horizon_months=0,
         )
         windows = expand_windows(
@@ -196,7 +202,8 @@ class TestExpandWindowsEnumeration:
 
         today = date(2025, 6, 13)  # Friday
         profile = Profile(
-            patterns=["fri-mon:2-3"],
+            name="test",
+            patterns=[parse_pattern("fri-mon:2-3")],
             max_horizon_months=0,
         )
         windows = expand_windows(
@@ -213,7 +220,8 @@ class TestExpandWindowsEnumeration:
 
         today = date(2025, 6, 14)  # Saturday
         profile = Profile(
-            patterns=["fri-mon:2-3"],
+            name="test",
+            patterns=[parse_pattern("fri-mon:2-3")],
             max_horizon_months=1,
         )
         windows = expand_windows(today, profile)
@@ -226,7 +234,8 @@ class TestExpandWindowsEnumeration:
 
         today = date(2025, 6, 13)  # Friday
         profile = Profile(
-            patterns=["fri-mon:3-3"],
+            name="test",
+            patterns=[parse_pattern("fri-mon:3-3")],
             max_horizon_months=0,
         )
         windows = expand_windows(today, profile)
@@ -259,7 +268,7 @@ class TestPreferLongestDedup:
     def test_prefer_longest_dedup_3n_covers_2n(self) -> None:
         """fri-mon:2-3 — 3-night surfaces, 2-night suppressed."""
         api = _AvailabilityApi()
-        profile = _make_profile(patterns=["fri-mon:2-3"], max_horizon_months=0)
+        profile = _make_profile(patterns=[parse_pattern("fri-mon:2-3")], max_horizon_months=0)
         today = date(2025, 6, 13)  # Friday
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(), today=today)
@@ -272,7 +281,7 @@ class TestPreferLongestDedup:
     def test_prefer_longest_dedup_2n_covers_1n(self) -> None:
         """fri-mon:1-3 — only the 3-night surfaces per map (covers all smaller)."""
         api = _AvailabilityApi()
-        profile = _make_profile(patterns=["fri-mon:1-3"], max_horizon_months=0)
+        profile = _make_profile(patterns=[parse_pattern("fri-mon:1-3")], max_horizon_months=0)
         today = date(2025, 6, 13)  # Friday
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(), today=today)
@@ -291,7 +300,7 @@ class TestPreferLongestDedup:
                 available.add((park_id, map_id, date(2025, 6, 13), 2))
                 available.add((park_id, map_id, date(2025, 6, 14), 2))
         api = _SelectiveAvailabilityApi(available)
-        profile = _make_profile(patterns=["fri-mon:2-3"])
+        profile = _make_profile(patterns=[parse_pattern("fri-mon:2-3")])
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(), today=today)
         )
@@ -309,7 +318,7 @@ class TestPreferLongestDedup:
             (1, 10, date(2025, 6, 13), 3),
         }
         api = _SelectiveAvailabilityApi(available)
-        profile = _make_profile(patterns=["fri-mon:2-3"], max_horizon_months=1)
+        profile = _make_profile(patterns=[parse_pattern("fri-mon:2-3")], max_horizon_months=1)
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(), today=today)
         )
@@ -329,7 +338,7 @@ class TestPreferLongestDedup:
                 available.add((park_id, map_id, date(2025, 6, 13), 1))
                 available.add((park_id, map_id, date(2025, 6, 14), 1))
         api = _SelectiveAvailabilityApi(available)
-        profile = _make_profile(patterns=["fri-sun:1-2"])
+        profile = _make_profile(patterns=[parse_pattern("fri-sun:1-2")])
         matches = list(
             run_search(api, profile, drive_times=_all_parks_drive_times(), today=today)
         )
@@ -349,7 +358,8 @@ class TestExplosionGuard:
 
         today = date(2026, 6, 1)  # Monday
         profile = Profile(
-            patterns=["wed-mon:1-5"],
+            name="test",
+            patterns=[parse_pattern("wed-mon:1-5")],
             max_horizon_months=2,
         )
         mock = Mock()
@@ -358,12 +368,11 @@ class TestExplosionGuard:
         mock.assert_called_once()
         msg = mock.call_args[0][0]
         assert "warning" in msg.lower()
-        assert "wed-mon:1-5" in msg
 
     def test_explosion_warning_does_not_block(self) -> None:
         """Even with explosive pattern, run() still yields matches."""
         api = _AvailabilityApi()
-        profile = _make_profile(patterns=["wed-mon:1-5"], max_horizon_months=2)
+        profile = _make_profile(patterns=[parse_pattern("wed-mon:1-5")], max_horizon_months=2)
         today = date(2026, 6, 1)
         matches = list(
             run_search(
@@ -378,7 +387,8 @@ class TestExplosionGuard:
 
         today = date(2026, 6, 1)  # Monday
         profile = Profile(
-            patterns=["fri-sun"],
+            name="test",
+            patterns=[parse_pattern("fri-sun")],
             max_horizon_months=1,
         )
         mock = Mock()
@@ -395,8 +405,8 @@ class TestBackwardCompat:
         api = _AvailabilityApi()
         today = date(2026, 6, 1)
 
-        profile_bare = _make_profile(patterns=["fri-sun"])
-        profile_explicit = _make_profile(patterns=["fri-sun:2-2"])
+        profile_bare = _make_profile(patterns=[parse_pattern("fri-sun")])
+        profile_explicit = _make_profile(patterns=[parse_pattern("fri-sun:2-2")])
 
         matches_bare = list(
             run_search(

@@ -13,19 +13,20 @@ from ..application import catalog
 from . import daemon as daemon_svc
 from ..presentation import format as fmt
 from ..application import search
+from ..domain.models import ParkQuery, PatternSpec, Profile
 from ..infrastructure.api import BCParksClient
 from ..application.availability import check_park
 from ..application.booking_links import quote_url
+from ..application.catalog import resolve_profile_parks
 from ..infrastructure.clock import SystemClock
-from ..application.profile import Profile, load_profile
+from ..application.migrate_profile import migrate_profile_json_to_db
 from ..application.throttle import (
     DEFAULT_REQUEST_INTERVAL_SECS,
     SETTING_REQUEST_INTERVAL_KEY,
     read_request_interval,
 )
-from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH
+from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH, PROFILE_PATH
 from ..domain.booking_window import max_bookable_start
-from ..domain.models import PatternSpec, Profile
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..domain.ports import ApiError, RateLimited
@@ -70,7 +71,7 @@ def _parse_date_or_exit(text: str) -> date:
         return date.fromisoformat(text)
     except ValueError as e:
         typer.echo(f"error: invalid date {text!r}", err=True)
-        raise typer.Exit(code=1) from e
+        raise typer.Exit(code=2) from e
 
 
 def _exit_for(err: Exception) -> typer.Exit:
@@ -105,22 +106,47 @@ def api_call():
     except Exception as e:
         raise _exit_for(e) from e
 
+
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 parks_app = typer.Typer(no_args_is_help=True, help="Discover parks and sub-areas (maps).")
 book_app = typer.Typer(no_args_is_help=True, help="Booking deep-link helpers.")
 catalog_app = typer.Typer(no_args_is_help=True, help="Manage the cached park catalog.")
-telegram_app = typer.Typer(no_args_is_help=True, help="Manage authorized Telegram users.")
 app.add_typer(parks_app, name="parks")
 app.add_typer(book_app, name="book")
 app.add_typer(catalog_app, name="catalog")
-app.add_typer(telegram_app, name="telegram")
 config_app = typer.Typer(no_args_is_help=True, help="Manage global settings.")
 app.add_typer(config_app, name="config")
 profile_app = typer.Typer(no_args_is_help=True, help="Manage search profiles.")
 app.add_typer(profile_app, name="profile")
 
 
+# ----- helpers ----------------------------------------------------------------
+
+
+def _run_profile_migration() -> None:
+    """Migrate legacy profile.json to DB if needed. Safe to call on every command."""
+    store = _store()
+    migrate_profile_json_to_db(PROFILE_PATH, store)
+
+
+def _confirm_profile_exists(store: SqliteStore, name: str) -> Profile:
+    profile = store.get_by_name(name)
+    if profile is None:
+        typer.echo(f"error: profile {name!r} not found", err=True)
+        raise typer.Exit(code=2)
+    return profile
+
+
+def _get_single_enabled_profile(store: SqliteStore) -> Profile | None:
+    """Return the single enabled profile, or None if zero/multiple."""
+    profiles = store.list_enabled()
+    if len(profiles) == 1:
+        return profiles[0]
+    return None
+
+
 # ----- parks -----------------------------------------------------------------
+
 
 @parks_app.command("list")
 def parks_list(
@@ -210,17 +236,35 @@ def search_cmd(
         help="Print a clickable booking deep-link under each match.",
     ),
     limit_parks: int | None = typer.Option(None, "--limit-parks", hidden=True),
+    profile_name: str | None = typer.Option(
+        None, "--profile", "-P",
+        help="Profile name (uses the single enabled profile if omitted).",
+    ),
 ) -> None:
     if group_by not in ("weekend", "park"):
         typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
         raise typer.Exit(code=1)
     drive_times = load_drive_times()
 
+    _run_profile_migration()
+    store = _store()
+
+    # Pick the profile.
+    if profile_name is not None:
+        profile = _confirm_profile_exists(store, profile_name)
+    else:
+        profile = _get_single_enabled_profile(store)
+        if profile is None:
+            typer.echo(
+                "error: no single enabled profile — use --profile to pick one",
+                err=True,
+            )
+            raise typer.Exit(code=2)
+
     def progress(msg: str) -> None:
         typer.echo(msg, err=True)
 
     with api_call() as api:
-        profile = load_profile(api)
         # CLI flags override profile values.
         if months is not None:
             profile.max_horizon_months = months
@@ -228,7 +272,12 @@ def search_cmd(
         if parsed_distance is not None:
             profile.max_drive_hours = parsed_distance
 
-        allowed_ids = profile.allowed_park_ids or None
+        # Resolve park queries → allowed_park_ids.
+        allowed_ids = (
+            resolve_profile_parks(api, profile.parks)
+            if profile.parks
+            else None
+        )
         matches = list(search.run(
             api, profile, drive_times=drive_times,
             allowed_park_ids=allowed_ids,
@@ -347,19 +396,12 @@ def config_show() -> None:
 # ----- profile ---------------------------------------------------------------
 
 
-def _confirm_profile_exists(store: SqliteStore, name: str) -> Profile:
-    profile = store.get_by_name(name)
-    if profile is None:
-        typer.echo(f"error: profile {name!r} not found", err=True)
-        raise typer.Exit(code=2)
-    return profile
-
-
 @profile_app.command("create")
 def profile_create(
     name: str = typer.Argument(..., help="Unique profile name."),
 ) -> None:
     """Create a new search profile with interactive prompts."""
+    _run_profile_migration()
     store = _store()
     if store.get_by_name(name) is not None:
         typer.echo(f"error: profile {name!r} already exists", err=True)
@@ -427,6 +469,7 @@ def profile_create(
 @profile_app.command("list")
 def profile_list() -> None:
     """List all profiles with key fields."""
+    _run_profile_migration()
     store = _store()
     profiles = store.list_all()
     if not profiles:
@@ -449,6 +492,7 @@ def profile_show(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Show full profile details."""
+    _run_profile_migration()
     store = _store()
     profile = _confirm_profile_exists(store, name)
     typer.echo(f"name:                         {profile.name}")
@@ -469,6 +513,7 @@ def profile_enable(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Enable a profile."""
+    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.set_enabled(name, True)
@@ -480,6 +525,7 @@ def profile_disable(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Disable a profile."""
+    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.set_enabled(name, False)
@@ -491,6 +537,7 @@ def profile_delete(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Delete a profile permanently."""
+    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.delete(name)
@@ -506,6 +553,7 @@ def profile_tg_add(
     tg_id: int = typer.Argument(..., help="Telegram user ID to authorize."),
 ) -> None:
     """Add a Telegram user ID to a profile."""
+    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.add_tg_id(name, tg_id)
@@ -518,6 +566,7 @@ def profile_tg_rm(
     tg_id: int = typer.Argument(..., help="Telegram user ID to remove."),
 ) -> None:
     """Remove a Telegram user ID from a profile."""
+    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     if store.remove_tg_id(name, tg_id):
@@ -532,6 +581,7 @@ def profile_tg_list(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """List Telegram user IDs authorized for a profile."""
+    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     ids = store.list_tg_ids(name)
@@ -550,6 +600,7 @@ def profile_edit(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Edit a profile interactively — add/remove patterns, parks, Telegram IDs."""
+    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
 
