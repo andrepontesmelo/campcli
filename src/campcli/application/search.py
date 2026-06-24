@@ -18,10 +18,44 @@ from ..domain.ports import BCParksApi
 from .pricing import fee_per_night
 from .profile import Profile
 
+_EXPLOSION_THRESHOLD = 10
+
+
+def _enumerate_pattern(
+    today: date,
+    end: date,
+    pattern: tuple[int, int, int, int],
+    min_start: date | None,
+    max_start: date | None,
+) -> list[tuple[date, int]]:
+    """Enumerate windows for a single pattern within [today, end]."""
+    weekday, span_nights, min_nights, max_nights = pattern
+    out: list[tuple[date, int]] = []
+    d = today
+    while d <= end:
+        if d.weekday() != weekday:
+            d += timedelta(days=1)
+            continue
+        for o in range(0, span_nights - min_nights + 1):
+            for n in range(min_nights, max_nights + 1):
+                if o + n > span_nights:
+                    continue
+                start = d + timedelta(days=o)
+                if start < today:
+                    continue
+                if min_start is not None and start < min_start:
+                    continue
+                if max_start is not None and start > max_start:
+                    continue
+                out.append((start, n))
+        d += timedelta(days=1)
+    return out
+
 
 def expand_windows(
     today: date, profile: Profile, max_start: date | None = None,
     min_start: date | None = None,
+    progress: Callable[[str], None] | None = None,
 ) -> list[tuple[date, int]]:
     """Yield every (start_date, nights) in *profile.patterns* within horizon.
 
@@ -30,30 +64,24 @@ def expand_windows(
     When *max_start* is set, windows starting after it are excluded
     (BC Parks booking window constraint — only start date matters).
     When *min_start* is set, windows starting before it are excluded.
+
+    *progress* is an optional side-channel for warnings (explosion guard).
     """
     horizon_days = profile.max_horizon_months * 30
     end = today + timedelta(days=horizon_days)
     out: list[tuple[date, int]] = []
     patterns = profile.pattern_tuples()
-    d = today
-    while d <= end:
-        for weekday, span_nights, min_nights, max_nights in patterns:
-            if d.weekday() != weekday:
-                continue
-            # Enumerate every offset and length that fits in the span.
-            for o in range(0, span_nights - min_nights + 1):
-                for n in range(min_nights, max_nights + 1):
-                    if o + n > span_nights:
-                        continue
-                    start = d + timedelta(days=o)
-                    if start < today:
-                        continue
-                    if min_start is not None and start < min_start:
-                        continue
-                    if max_start is not None and start > max_start:
-                        continue
-                    out.append((start, n))
-        d += timedelta(days=1)
+    for i, pattern in enumerate(patterns):
+        pattern_windows = _enumerate_pattern(
+            today, end, pattern, min_start, max_start,
+        )
+        if len(pattern_windows) > _EXPLOSION_THRESHOLD and progress is not None:
+            progress(
+                f"warning: pattern #{i} {profile.patterns[i]!r} expanded to "
+                f"{len(pattern_windows)} windows (threshold="
+                f"{_EXPLOSION_THRESHOLD}); consider tightening the span"
+            )
+        out.extend(pattern_windows)
     return out
 
 
@@ -86,6 +114,7 @@ def run(
         today, profile,
         max_start=max_bookable_start(today),
         min_start=min_start,
+        progress=progress,
     )
     parks = catalog.list_parks_filtered(
         api, drive_times=drive_times, max_hours=profile.max_drive_hours,

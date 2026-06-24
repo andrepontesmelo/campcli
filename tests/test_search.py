@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import date
 from typing import Any
+from unittest.mock import Mock
 
 from campcli.application.drive_times import DriveTimes
 from campcli.application.profile import Profile
@@ -337,3 +338,76 @@ class TestPreferLongestDedup:
         for m in matches:
             assert m.nights == 2
             assert m.start_date == date(2025, 6, 13)
+
+
+class TestExplosionGuard:
+    """Explosion-guard warning fires / does not block / silent under threshold."""
+
+    def test_explosion_warning_fires(self) -> None:
+        """Pattern emitting >10 windows triggers progress warning."""
+        from campcli.application.search import expand_windows
+
+        today = date(2026, 6, 1)  # Monday
+        profile = Profile(
+            patterns=["wed-mon:1-5"],
+            max_horizon_months=2,
+        )
+        mock = Mock()
+        windows = expand_windows(today, profile, progress=mock)
+        assert len(windows) > 10  # sanity: the pattern is indeed explosive
+        mock.assert_called_once()
+        msg = mock.call_args[0][0]
+        assert "warning" in msg.lower()
+        assert "wed-mon:1-5" in msg
+
+    def test_explosion_warning_does_not_block(self) -> None:
+        """Even with explosive pattern, run() still yields matches."""
+        api = _AvailabilityApi()
+        profile = _make_profile(patterns=["wed-mon:1-5"], max_horizon_months=2)
+        today = date(2026, 6, 1)
+        matches = list(
+            run_search(
+                api, profile, drive_times=_all_parks_drive_times(), today=today,
+            )
+        )
+        assert len(matches) > 0
+
+    def test_no_warning_under_threshold(self) -> None:
+        """Bare pattern over a modest horizon does NOT trigger warning."""
+        from campcli.application.search import expand_windows
+
+        today = date(2026, 6, 1)  # Monday
+        profile = Profile(
+            patterns=["fri-sun"],
+            max_horizon_months=1,
+        )
+        mock = Mock()
+        windows = expand_windows(today, profile, progress=mock)
+        assert 0 < len(windows) < 10  # well under threshold
+        mock.assert_not_called()
+
+
+class TestBackwardCompat:
+    """Backward-compatibility regression lock for the migration promise."""
+
+    def test_bare_fri_sun_unchanged(self) -> None:
+        """Profile with ['fri-sun'] yields identical matches to ['fri-sun:2-2']."""
+        api = _AvailabilityApi()
+        today = date(2026, 6, 1)
+
+        profile_bare = _make_profile(patterns=["fri-sun"])
+        profile_explicit = _make_profile(patterns=["fri-sun:2-2"])
+
+        matches_bare = list(
+            run_search(
+                api, profile_bare, drive_times=_all_parks_drive_times(), today=today,
+            )
+        )
+        matches_explicit = list(
+            run_search(
+                api, profile_explicit, drive_times=_all_parks_drive_times(), today=today,
+            )
+        )
+        set_bare = set((m.start_date, m.nights) for m in matches_bare)
+        set_explicit = set((m.start_date, m.nights) for m in matches_explicit)
+        assert set_bare == set_explicit
