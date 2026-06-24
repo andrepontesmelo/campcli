@@ -37,16 +37,22 @@ def expand_windows(
     patterns = profile.pattern_tuples()
     d = today
     while d <= end:
-        if min_start is not None and d < min_start:
-            d += timedelta(days=1)
-            continue
-        if max_start is not None and d > max_start:
-            d += timedelta(days=1)
-            continue
-        # TODO subtask 9ggclfjc: full enumeration rewrite — expand min/max
-        for weekday, span_nights, _min_nights, _max_nights in patterns:
-            if d.weekday() == weekday and d >= today:
-                out.append((d, span_nights))
+        for weekday, span_nights, min_nights, max_nights in patterns:
+            if d.weekday() != weekday:
+                continue
+            # Enumerate every offset and length that fits in the span.
+            for o in range(0, span_nights - min_nights + 1):
+                for n in range(min_nights, max_nights + 1):
+                    if o + n > span_nights:
+                        continue
+                    start = d + timedelta(days=o)
+                    if start < today:
+                        continue
+                    if min_start is not None and start < min_start:
+                        continue
+                    if max_start is not None and start > max_start:
+                        continue
+                    out.append((start, n))
         d += timedelta(days=1)
     return out
 

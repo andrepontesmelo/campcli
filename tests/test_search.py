@@ -147,3 +147,86 @@ class TestExpandWindowsMinStart:
         )
         windows = expand_windows(today, profile)
         assert all(w[0] >= today for w in windows)
+
+
+class TestExpandWindowsEnumeration:
+    def test_ranged_pattern_fri_mon_2_3(self) -> None:
+        from campcli.application.search import expand_windows
+
+        today = date(2025, 6, 13)  # Friday
+        profile = Profile(
+            patterns=["fri-mon:2-3"],
+            max_horizon_months=0,
+        )
+        windows = expand_windows(today, profile)
+        assert set(windows) == {
+            (date(2025, 6, 13), 2),
+            (date(2025, 6, 14), 2),
+            (date(2025, 6, 13), 3),
+        }
+
+    def test_bare_pattern_unchanged(self) -> None:
+        from campcli.application.search import expand_windows
+
+        today = date(2025, 6, 13)  # Friday
+        profile = Profile(
+            patterns=["fri-sun"],
+            max_horizon_months=0,
+        )
+        windows = expand_windows(today, profile)
+        assert windows == [(date(2025, 6, 13), 2)]
+
+    def test_min_start_filters_emitted_starts(self) -> None:
+        from campcli.application.search import expand_windows
+
+        today = date(2025, 6, 13)  # Friday
+        profile = Profile(
+            patterns=["fri-mon:2-3"],
+            max_horizon_months=0,
+        )
+        windows = expand_windows(
+            today, profile,
+            min_start=date(2025, 6, 14),
+        )
+        assert windows == [(date(2025, 6, 14), 2)]
+
+    def test_max_start_filters_emitted_starts(self) -> None:
+        from campcli.application.search import expand_windows
+
+        today = date(2025, 6, 13)  # Friday
+        profile = Profile(
+            patterns=["fri-mon:2-3"],
+            max_horizon_months=0,
+        )
+        windows = expand_windows(
+            today, profile,
+            max_start=date(2025, 6, 13),
+        )
+        assert set(windows) == {
+            (date(2025, 6, 13), 2),
+            (date(2025, 6, 13), 3),
+        }
+
+    def test_past_date_anchor_excluded(self) -> None:
+        from campcli.application.search import expand_windows
+
+        today = date(2025, 6, 14)  # Saturday
+        profile = Profile(
+            patterns=["fri-mon:2-3"],
+            max_horizon_months=1,
+        )
+        windows = expand_windows(today, profile)
+        first_friday = date(2025, 6, 20)
+        assert all(w[0] >= today for w in windows)
+        assert all(w[0] >= first_friday for w in windows)
+
+    def test_min_equals_max_equals_span(self) -> None:
+        from campcli.application.search import expand_windows
+
+        today = date(2025, 6, 13)  # Friday
+        profile = Profile(
+            patterns=["fri-mon:3-3"],
+            max_horizon_months=0,
+        )
+        windows = expand_windows(today, profile)
+        assert windows == [(date(2025, 6, 13), 3)]
