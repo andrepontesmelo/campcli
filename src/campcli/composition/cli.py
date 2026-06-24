@@ -120,6 +120,12 @@ profile_app = typer.Typer(no_args_is_help=True, help="Manage search profiles.")
 app.add_typer(profile_app, name="profile")
 
 
+@app.callback()
+def _main_callback() -> None:
+    """Run once before any subcommand: migrate legacy profile.json to DB."""
+    _run_profile_migration()
+
+
 # ----- helpers ----------------------------------------------------------------
 
 
@@ -280,7 +286,6 @@ def check(
         help="Profile name (uses the single enabled profile if omitted).",
     ),
 ) -> None:
-    _run_profile_migration()
     store = _store()
     profile = resolve_profile(store, profile_name)
     typer.echo(f"Profile: {profile.name}", err=True)
@@ -328,7 +333,6 @@ def search_cmd(
         typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
         raise typer.Exit(code=1)
 
-    _run_profile_migration()
     store = _store()
     profile = resolve_profile(store, profile_name)
     typer.echo(f"Profile: {profile.name}", err=True)
@@ -453,7 +457,6 @@ def profile_create(
     name: str = typer.Argument(..., help="Unique profile name."),
 ) -> None:
     """Create a new search profile with interactive prompts."""
-    _run_profile_migration()
     store = _store()
     if store.get_by_name(name) is not None:
         typer.echo(f"error: profile {name!r} already exists", err=True)
@@ -521,7 +524,6 @@ def profile_create(
 @profile_app.command("list")
 def profile_list() -> None:
     """List all profiles with key fields."""
-    _run_profile_migration()
     store = _store()
     profiles = store.list_all()
     if not profiles:
@@ -544,7 +546,6 @@ def profile_show(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Show full profile details."""
-    _run_profile_migration()
     store = _store()
     profile = _confirm_profile_exists(store, name)
     typer.echo(f"name:                         {profile.name}")
@@ -579,7 +580,6 @@ def profile_search(
     limit_parks: int | None = typer.Option(None, "--limit-parks", hidden=True),
 ) -> None:
     """Search campsites for a named profile (explicit form)."""
-    _run_profile_migration()
     store = _store()
     profile = _confirm_profile_exists(store, name)
     if not profile.enabled:
@@ -604,7 +604,6 @@ def profile_enable(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Enable a profile."""
-    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.set_enabled(name, True)
@@ -616,7 +615,6 @@ def profile_disable(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Disable a profile."""
-    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.set_enabled(name, False)
@@ -628,7 +626,6 @@ def profile_delete(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Delete a profile permanently."""
-    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.delete(name)
@@ -644,7 +641,6 @@ def profile_tg_add(
     tg_id: int = typer.Argument(..., help="Telegram user ID to authorize."),
 ) -> None:
     """Add a Telegram user ID to a profile."""
-    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     store.add_tg_id(name, tg_id)
@@ -657,7 +653,6 @@ def profile_tg_rm(
     tg_id: int = typer.Argument(..., help="Telegram user ID to remove."),
 ) -> None:
     """Remove a Telegram user ID from a profile."""
-    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     if store.remove_tg_id(name, tg_id):
@@ -672,7 +667,6 @@ def profile_tg_list(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """List Telegram user IDs authorized for a profile."""
-    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
     ids = store.list_tg_ids(name)
@@ -691,7 +685,6 @@ def profile_edit(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Edit a profile interactively — add/remove patterns, parks, Telegram IDs."""
-    _run_profile_migration()
     store = _store()
     _confirm_profile_exists(store, name)
 
@@ -789,7 +782,6 @@ def not_interested_add(
     date_end: str = typer.Argument(..., help="End date (YYYY-MM-DD)."),
 ) -> None:
     """Mark a park+dates as not interested for a profile."""
-    _run_profile_migration()
     store = _store()
     profile = _confirm_profile_exists(store, profile_name)
     start = _parse_date_or_exit(date_start)
@@ -822,7 +814,6 @@ def not_interested_rm(
     date_end: str = typer.Argument(..., help="End date (YYYY-MM-DD)."),
 ) -> None:
     """Remove a not-interested entry."""
-    _run_profile_migration()
     store = _store()
     profile = _confirm_profile_exists(store, profile_name)
     start = _parse_date_or_exit(date_start)
@@ -855,7 +846,6 @@ def not_interested_list(
     profile_name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """List not-interested entries for a profile."""
-    _run_profile_migration()
     store = _store()
     profile = _confirm_profile_exists(store, profile_name)
     entries = store.list_for(profile.id)
