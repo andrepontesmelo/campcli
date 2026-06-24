@@ -124,11 +124,7 @@ class BCParksClient:
         resources = resp.get("resourceAvailabilities") or {}
         return {int(k): v for k, v in resources.items()}
 
-    def resource_details(self, *, park_id: int, map_id: int) -> Any:
-        return self._get(
-            "/api/resource/details",
-            params={"resourceLocationId": park_id, "mapId": map_id},
-        )
+    # resource_details: Protocol requirement, no implementation needed in current codepaths
 
     # ---- Extra methods (not on Protocol) ------------------------------------
 
