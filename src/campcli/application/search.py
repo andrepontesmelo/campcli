@@ -123,12 +123,15 @@ def run(
                 if m.map_id not in allowed_maps:
                     continue
 
-            two_night_starts: set[date] = set()
+            accepted_ranges: list[tuple[date, int]] = []
             map_windows = sorted(windows, key=lambda w: (w[0], -w[1]))
             for start, nights in map_windows:
-                if nights == 1 and (
-                    start in two_night_starts
-                    or (start - timedelta(days=1)) in two_night_starts
+                # Skip if a longer stay already covers this candidate's range.
+                if any(
+                    a_start <= start
+                    and start + timedelta(days=nights)
+                    <= a_start + timedelta(days=a_nights)
+                    for (a_start, a_nights) in accepted_ranges
                 ):
                     continue
                 try:
@@ -137,8 +140,7 @@ def run(
                     continue
                 if not sites:
                     continue
-                if nights == 2:
-                    two_night_starts.add(start)
+                accepted_ranges.append((start, nights))
                 fee = fee_per_night(start)
                 match = WeekendMatch(
                     park_id=park.park_id,
