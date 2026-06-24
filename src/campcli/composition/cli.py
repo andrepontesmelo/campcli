@@ -177,7 +177,6 @@ def resolve_profile(
         )
         raise typer.Exit(code=2)
     # Exactly one enabled profile.
-    typer.echo(f"using profile {enabled[0].name!r}", err=True)
     return enabled[0]
 
 
@@ -283,7 +282,8 @@ def check(
 ) -> None:
     _run_profile_migration()
     store = _store()
-    resolve_profile(store, profile_name)  # resolves profile for context
+    profile = resolve_profile(store, profile_name)
+    typer.echo(f"Profile: {profile.name}", err=True)
     start_d = _parse_date_or_exit(start)
     cutoff = max_bookable_start()
     if start_d > cutoff:
