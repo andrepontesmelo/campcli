@@ -108,6 +108,19 @@ def expand_windows(
     return out
 
 
+def _is_covered(
+    start: date,
+    nights: int,
+    accepted: list[tuple[date, int]],
+) -> bool:
+    """Return True if *start* / *nights* is fully within any accepted range."""
+    end = start + timedelta(days=nights)
+    return any(
+        a_start <= start and end <= a_start + timedelta(days=a_nights)
+        for (a_start, a_nights) in accepted
+    )
+
+
 def run(
     api: BCParksApi,
     profile: Profile,
@@ -179,12 +192,7 @@ def run(
             map_windows = sorted(windows, key=lambda w: (w[0], -w[1]))
             for start, nights in map_windows:
                 # Skip if a longer stay already covers this candidate's range.
-                if any(
-                    a_start <= start
-                    and start + timedelta(days=nights)
-                    <= a_start + timedelta(days=a_nights)
-                    for (a_start, a_nights) in accepted_ranges
-                ):
+                if _is_covered(start, nights, accepted_ranges):
                     continue
                 try:
                     sites = check_map(api, park, m, start, nights, party_size=1)
