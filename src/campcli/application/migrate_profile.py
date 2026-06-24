@@ -49,17 +49,22 @@ def migrate_profile_json_to_db(
         )
     )
 
-    for pattern_str in raw.get("patterns", ["fri-sun"]):
-        profile_repo.add_pattern("default", pattern_str)
+    # Atomicity: all child operations must succeed or the parent is rolled back.
+    try:
+        for pattern_str in raw.get("patterns", ["fri-sun"]):
+            profile_repo.add_pattern("default", pattern_str)
 
-    for entry in raw.get("allowed", []):
-        park_query = entry.get("park", "")
-        map_query = entry.get("map")
-        profile_repo.add_park("default", park_query, map_query)
+        for entry in raw.get("allowed", []):
+            park_query = entry.get("park", "")
+            map_query = entry.get("map")
+            profile_repo.add_park("default", park_query, map_query)
 
-    for tg_id in raw.get("tg_allowed_ids", []):
-        profile_repo.add_tg_id("default", tg_id)
+        for tg_id in raw.get("tg_allowed_ids", []):
+            profile_repo.add_tg_id("default", tg_id)
+    except Exception:
+        profile_repo.delete("default")
+        raise
 
-    # Remove the legacy file.
+    # Remove the legacy file — only reached after all child rows succeed.
     profile_json_path.unlink(missing_ok=True)
     return True

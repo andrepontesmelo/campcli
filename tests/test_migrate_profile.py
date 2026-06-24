@@ -106,3 +106,25 @@ class TestMigrateProfileJsonToDb:
         assert len(default.parks) == 1
         assert default.parks[0].park_query == "Bowron Lake"
         assert default.parks[0].map_query == "Main"
+
+    def test_migration_atomic_rollback(self, tmp_path: Path, profile_repo, monkeypatch) -> None:
+        """Child failure rolls back the parent profile row."""
+        json_path = tmp_path / "profile.json"
+        json_path.write_text(json.dumps({
+            "patterns": ["fri-sun"],
+            "allowed": [{"park": "Bowron Lake"}],
+            "tg_allowed_ids": [12345],
+        }))
+
+        def failing_add_park(name, park_query, map_query=None):
+            raise RuntimeError("simulated db error")
+
+        monkeypatch.setattr(profile_repo, "add_park", failing_add_park)
+
+        with pytest.raises(RuntimeError, match="simulated db error"):
+            migrate_profile_json_to_db(json_path, profile_repo)
+
+        # Parent row must be cleaned up.
+        assert profile_repo.get_by_name("default") is None
+        # JSON file preserved so migration can be retried.
+        assert json_path.exists()
