@@ -22,20 +22,21 @@ from campcli.domain.models import Map, Park
 
 class TestParsePattern:
     def test_fri_sun(self):
-        assert parse_pattern("fri-sun") == (4, 3)
+        assert parse_pattern("fri-sun") == (4, 2)
 
     def test_sat_sun(self):
-        assert parse_pattern("sat-sun") == (5, 2)
+        assert parse_pattern("sat-sun") == (5, 1)
 
     def test_mon_fri(self):
-        assert parse_pattern("mon-fri") == (0, 5)
+        assert parse_pattern("mon-fri") == (0, 4)
 
     def test_case_insensitive(self):
-        assert parse_pattern("FRI-sun") == (4, 3)
-        assert parse_pattern("SAT-SUN") == (5, 2)
+        assert parse_pattern("FRI-sun") == (4, 2)
+        assert parse_pattern("SAT-SUN") == (5, 1)
 
-    def test_single_day(self):
-        assert parse_pattern("fri-fri") == (4, 1)
+    def test_same_day_rejected(self):
+        with pytest.raises(ValueError, match="no wrap-around or same-day"):
+            parse_pattern("fri-fri")
 
     def test_invalid_no_hyphen(self):
         with pytest.raises(ValueError, match="expected 'day-day' format"):
@@ -85,7 +86,7 @@ class TestProfileDefault:
 
     def test_pattern_tuples(self):
         p = Profile(patterns=["fri-sun", "sat-sun"])
-        assert p.pattern_tuples() == [(4, 3), (5, 2)]
+        assert p.pattern_tuples() == [(4, 2), (5, 1)]
 
     def test_min_start_date_parsed_none(self):
         p = Profile()

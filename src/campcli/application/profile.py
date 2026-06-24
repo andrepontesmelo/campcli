@@ -32,10 +32,10 @@ _WEEKDAYS: dict[str, int] = {
 
 
 def parse_pattern(s: str) -> tuple[int, int]:
-    """Parse ``"fri-sun"`` → ``(4, 3)``.
+    """Parse ``"fri-sun"`` → ``(4, 2)``.
 
     Returns ``(start_weekday, nights)``. Raises ``ValueError`` for
-    unknown day names or wrap-around patterns.
+    unknown day names, wrap-around patterns, or same-day patterns.
     """
     parts = s.split("-")
     if len(parts) != 2:
@@ -56,12 +56,12 @@ def parse_pattern(s: str) -> tuple[int, int]:
             f"invalid pattern {s!r}: unknown day {end_str!r} "
             f"(expected mon/tue/wed/thu/fri/sat/sun)"
         )
-    if end < start:
+    if end <= start:
         raise ValueError(
-            f"invalid pattern {s!r}: end day {end_str} is before "
-            f"start day {start_str} (no wrap-around)"
+            f"invalid pattern {s!r}: end day {end_str} must come after "
+            f"start day {start_str} (no wrap-around or same-day)"
         )
-    nights = end - start + 1
+    nights = end - start
     return start, nights
 
 

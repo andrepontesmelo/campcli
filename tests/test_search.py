@@ -141,7 +141,7 @@ class TestExpandWindowsMinStart:
 
         today = date(2026, 6, 15)
         profile = Profile(
-            patterns=["mon-mon"],
+            patterns=["mon-tue"],
             max_horizon_months=1,
             min_start_date=None,
         )

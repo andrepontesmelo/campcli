@@ -154,7 +154,7 @@ def _render_by_park(matches: list[WeekendMatch], drive_times: DriveTimes, with_u
                 last_night = r.end_date - timedelta(days=1)
                 out.append(
                     f"    {_spot_label(r)} - "
-                    f"{_pretty_date(r.start_date)} -> {_pretty_date(last_night)} "
+                    f"{_pretty_date(r.start_date)} -> {_pretty_date(r.end_date)} "
                     f"({r.nights}n)  {_fee_label(r.fee_per_night)}"
                     f"{_holiday_suffix(r.start_date, last_night)}"
                 )
@@ -172,9 +172,10 @@ def _render_by_weekend(matches: list[WeekendMatch], drive_times: DriveTimes, wit
     out: list[str] = []
     for key in sorted(by_weekend.keys()):
         start, nights = key
-        last_night = by_weekend[key][0].end_date - timedelta(days=1)
+        end_date = by_weekend[key][0].end_date
+        last_night = end_date - timedelta(days=1)
         out.append(
-            f"{_pretty_date(start)} -> {_pretty_date(last_night)} ({nights}n)"
+            f"{_pretty_date(start)} -> {_pretty_date(end_date)} ({nights}n)"
             f"{_holiday_suffix(start, last_night)}"
         )
 
@@ -225,10 +226,10 @@ def render_match_message(
     lines = [
         f"\U0001f3d5  {m.park_name}{drive_str}",
         f"   {m.map_name}",
-        f"   {m.start_date.strftime('%a %b %d')} \u2192 {(m.end_date - timedelta(days=1)).strftime('%a %b %d')}  ({m.nights}n)  {fee}",
+        f"   {m.start_date.strftime('%a %b %d')} \u2192 {m.end_date.strftime('%a %b %d')}  ({m.nights}n)  {fee}",
         f"   {m.available_count} {spots}",
     ]
-    holiday = nearest_holiday(m.start_date, m.end_date - timedelta(days=1))
+    holiday = nearest_holiday(m.start_date, m.end_date - timedelta(days=1))  # last night stayed
     if holiday is not None:
         h_date, h_name = holiday
         lines.append(f"   \U0001f389 {h_name} ({h_date.strftime('%a %b %d')})")
