@@ -10,6 +10,7 @@ class FakeTelegram:
 
     def send_to(self, chat_id, text):
         self.sent.append((chat_id, text))
+        return 42
 
 
 class FrozenClock:

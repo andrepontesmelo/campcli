@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from .models import Map, Park, ParkQuery, PatternSpec, Profile
+from .models import Map, NotInterested, Park, ParkQuery, PatternSpec, Profile
 
 
 class ApiError(RuntimeError):
@@ -98,8 +98,8 @@ class Telegram(Protocol):
     responsible for JSON parsing and chat_id filtering.
     """
 
-    def send_to(self, chat_id: str, text: str) -> None:
-        """Post a message to the given chat."""
+    def send_to(self, chat_id: str, text: str) -> int:
+        """Post a message to the given chat. Returns the Telegram message_id."""
 
     def poll_updates(
         self, offset: int | None = None, long_poll_timeout: int = 0
@@ -184,4 +184,39 @@ class ProfileRepo(Protocol):
 
     def list_tg_ids(self, profile_name: str) -> list[int]:
         """Return Telegram IDs for a profile."""
+
+
+class NotInterestedRepo(Protocol):
+    """Repository for NotInterested profile-level skip preferences.
+
+    Each entry says: "for this Profile, do not suggest this Park on this
+    specific date range again." Scoped by (profile_id, park_id, date_start,
+    date_end).
+    """
+
+    def add(
+        self, profile_id: int, park_id: int, date_start: date, date_end: date
+    ) -> None:
+        """Record a not-interested entry. Raises ValueError on duplicate."""
+
+    def remove(
+        self, profile_id: int, park_id: int, date_start: date, date_end: date
+    ) -> None:
+        """Remove a not-interested entry. No-op if not found."""
+
+    def list_for(self, profile_id: int) -> list[NotInterested]:
+        """Return all not-interested entries for a profile."""
+
+    def load_skip_set(self, profile_id: int) -> set[tuple[int, date, date]]:
+        """Return {(park_id, date_start, date_end)} for O(1) lookup during notify."""
+
+    def record_sent(
+        self, message_id: int, profile_id: int, park_id: int, date_start: date, date_end: date
+    ) -> None:
+        """Record that a notification was sent (maps message_id to park+dates)."""
+
+    def lookup_sent(
+        self, message_id: int
+    ) -> tuple[int, int, date, date] | None:
+        """Look up (profile_id, park_id, date_start, date_end) for a sent message_id."""
 

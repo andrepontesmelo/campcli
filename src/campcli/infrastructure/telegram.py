@@ -27,8 +27,9 @@ class HttpxTelegram:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
-    def send_to(self, chat_id: str, text: str) -> None:
+    def send_to(self, chat_id: str, text: str) -> int:
         url = f"https://api.telegram.org/bot{self._token}/sendMessage"
+        last_id = 0
         for chunk in _chunks(text, TG_MAX_LEN):
             resp = self._client.post(
                 url,
@@ -39,6 +40,8 @@ class HttpxTelegram:
                 },
             )
             resp.raise_for_status()
+            last_id = resp.json()["result"]["message_id"]
+        return last_id
 
     def poll_updates(
         self, offset: int | None = None, long_poll_timeout: int = 0

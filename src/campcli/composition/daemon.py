@@ -24,6 +24,7 @@ def run_forever(
     interval_secs: float = 1.0,
 ) -> None:
     store = SqliteStore(DB_PATH)
+    store.purge_old_sent_notifications()
     interval = read_request_interval(store)
     clock = SystemClock()
     drive_times = load_drive_times()
@@ -37,6 +38,7 @@ def run_forever(
             telegram=telegram,
             drive_times=drive_times,
             log=lambda msg: None,  # overridden by poller after construction
+            not_interested_repo=store,
             rest_days=profile.rest_days_between_bookings,
         )
 

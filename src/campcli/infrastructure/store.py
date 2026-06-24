@@ -1,12 +1,13 @@
-"""SQLite store — single adapter implementing SettingsRepo + ProfileRepo."""
+"""SQLite store — single adapter implementing SettingsRepo + ProfileRepo + NotInterestedRepo."""
 from __future__ import annotations
 
 import sqlite3
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 from typing import Iterator
 
-from ..domain.models import ParkQuery, PatternSpec, Profile, parse_pattern
+from ..domain.models import NotInterested, ParkQuery, PatternSpec, Profile, parse_pattern
 from ..domain.ports import Clock
 from ..infrastructure.clock import SystemClock
 
@@ -47,6 +48,24 @@ CREATE TABLE IF NOT EXISTS profile_telegram_ids (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     tg_id INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS profile_not_interested (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    park_id INTEGER NOT NULL,
+    date_start TEXT NOT NULL,
+    date_end TEXT NOT NULL,
+    UNIQUE(profile_id, park_id, date_start, date_end)
+);
+
+CREATE TABLE IF NOT EXISTS sent_notifications (
+    message_id INTEGER PRIMARY KEY,
+    profile_id INTEGER NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    park_id INTEGER NOT NULL,
+    date_start TEXT NOT NULL,
+    date_end TEXT NOT NULL,
+    created_at TEXT NOT NULL
 );
 """
 
@@ -349,3 +368,109 @@ class SqliteStore:
                     (pid,),
                 ).fetchall()
             ]
+
+    # ---- NotInterestedRepo ---------------------------------------------------
+
+    def add(
+        self, profile_id: int, park_id: int, date_start: date, date_end: date
+    ) -> None:
+        with self._connect() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO profile_not_interested "
+                    "(profile_id, park_id, date_start, date_end) "
+                    "VALUES (?, ?, ?, ?)",
+                    (profile_id, park_id, date_start.isoformat(), date_end.isoformat()),
+                )
+            except sqlite3.IntegrityError:
+                raise ValueError(
+                    f"not-interested entry already exists for "
+                    f"profile {profile_id}, park {park_id}, "
+                    f"{date_start}–{date_end}"
+                )
+
+    def remove(
+        self, profile_id: int, park_id: int, date_start: date, date_end: date
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM profile_not_interested "
+                "WHERE profile_id = ? AND park_id = ? AND date_start = ? AND date_end = ?",
+                (profile_id, park_id, date_start.isoformat(), date_end.isoformat()),
+            )
+
+    def list_for(self, profile_id: int) -> list[NotInterested]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT profile_id, park_id, date_start, date_end "
+                "FROM profile_not_interested WHERE profile_id = ? "
+                "ORDER BY date_start",
+                (profile_id,),
+            ).fetchall()
+            return [
+                NotInterested(
+                    profile_id=r["profile_id"],
+                    park_id=r["park_id"],
+                    date_start=date.fromisoformat(r["date_start"]),
+                    date_end=date.fromisoformat(r["date_end"]),
+                )
+                for r in rows
+            ]
+
+    def load_skip_set(self, profile_id: int) -> set[tuple[int, date, date]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT park_id, date_start, date_end "
+                "FROM profile_not_interested WHERE profile_id = ?",
+                (profile_id,),
+            ).fetchall()
+            return {
+                (r["park_id"], date.fromisoformat(r["date_start"]), date.fromisoformat(r["date_end"]))
+                for r in rows
+            }
+
+    def record_sent(
+        self, message_id: int, profile_id: int, park_id: int, date_start: date, date_end: date
+    ) -> None:
+        now = self._clock.now().isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO sent_notifications "
+                "(message_id, profile_id, park_id, date_start, date_end, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (message_id, profile_id, park_id,
+                 date_start.isoformat(), date_end.isoformat(), now),
+            )
+
+    def lookup_sent(
+        self, message_id: int
+    ) -> tuple[int, int, date, date] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT profile_id, park_id, date_start, date_end "
+                "FROM sent_notifications WHERE message_id = ?",
+                (message_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return (
+                row["profile_id"],
+                row["park_id"],
+                date.fromisoformat(row["date_start"]),
+                date.fromisoformat(row["date_end"]),
+            )
+
+    def purge_old_sent_notifications(self, max_age_days: int = 90) -> int:
+        """Delete sent_notifications rows older than max_age_days. Returns count."""
+        cutoff = self._clock.now().isoformat()
+        # Compute cutoff by subtracting days — we compare ISO strings so
+        # subtract timedelta from the clock time for consistency.
+        from datetime import timedelta
+        cutoff_dt = self._clock.now() - timedelta(days=max_age_days)
+        cutoff = cutoff_dt.isoformat()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "DELETE FROM sent_notifications WHERE created_at < ?",
+                (cutoff,),
+            )
+            return cursor.rowcount

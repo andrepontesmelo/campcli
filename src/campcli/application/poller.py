@@ -260,7 +260,7 @@ class Poller:
                     notifier.set_log(self.log)
                     self._notifiers[profile.id] = notifier
 
-                notifier.start_poll([], set())
+                notifier.start_poll([], set(), profile_id=profile.id)
 
                 # Build chat_ids for this profile's tg_allowed_ids.
                 chat_ids = [

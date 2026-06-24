@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import NamedTuple
 
@@ -178,6 +179,14 @@ class Profile(BaseModel):
     patterns: list[PatternSpec] = Field(default_factory=list)
     parks: list[ParkQuery] = Field(default_factory=list)
     tg_allowed_ids: list[int] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class NotInterested:
+    profile_id: int
+    park_id: int
+    date_start: date
+    date_end: date
 
 
 

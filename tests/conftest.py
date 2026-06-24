@@ -39,8 +39,9 @@ class FakeTelegram:
         self.edited_messages: list[tuple[str, int, str | None, list | None]] = []
         self.answered_callbacks: list[str] = []
 
-    def send_to(self, chat_id: str, text: str) -> None:
+    def send_to(self, chat_id: str, text: str) -> int:
         self.sent.append(text)
+        return 42
 
     def poll_updates(self, offset: int | None = None, long_poll_timeout: int = 0) -> list[TelegramUpdate]:
         out, self.canned_updates = self.canned_updates, []
@@ -73,8 +74,8 @@ class FakeSearchNotifier:
         self.start_poll_calls: list[tuple[list, set[int]]] = []
         self.notify_calls: list = []
 
-    def start_poll(self, booking_starts, blocked_park_ids):
-        self.start_poll_calls.append((booking_starts, blocked_park_ids))
+    def start_poll(self, booking_starts, blocked_park_ids, profile_id=None):
+        self.start_poll_calls.append((booking_starts, blocked_park_ids, profile_id))
 
     def notify(self, match, *, chat_ids=None):
         self.notify_calls.append(match)
