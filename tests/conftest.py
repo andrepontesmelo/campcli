@@ -149,4 +149,5 @@ def poller(store, clock, fake_api, fake_telegram, notifier_factory, profile_repo
         settings_repo=store, clock=clock,
         drive_times=DriveTimes.empty(),
         profile_repo=profile_repo,
+        not_interested_repo=store,
     )

@@ -53,6 +53,7 @@ def run_forever(
             settings_repo=store, clock=clock,
             drive_times=drive_times,
             profile_repo=profile_repo,
+            not_interested_repo=store,
         )
         poller.set_poll_telegram(poll_telegram)
         poller.start()

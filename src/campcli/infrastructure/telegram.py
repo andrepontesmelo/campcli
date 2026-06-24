@@ -71,6 +71,10 @@ class HttpxTelegram:
             chat_id = str((msg.get("chat") or {}).get("id", ""))
             from_id = (msg.get("from") or {}).get("id")
             text = (msg.get("text") or "").strip()
+            reply_to = msg.get("reply_to_message")
+            reply_to_message_id = (
+                reply_to.get("message_id") if isinstance(reply_to, dict) else None
+            ) if reply_to else None
             # Handle callback queries
             cb = upd.get("callback_query") or {}
             from_id = from_id or (cb.get("from") or {}).get("id")
@@ -90,6 +94,7 @@ class HttpxTelegram:
                     callback_query_id=cb_id,
                     callback_data=cb_data,
                     message_id=cb_msg_id,
+                    reply_to_message_id=reply_to_message_id,
                 )
             )
         return out

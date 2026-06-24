@@ -83,6 +83,7 @@ class TelegramUpdate(BaseModel):
     callback_query_id: str | None = None
     callback_data: str | None = None
     message_id: int | None = None
+    reply_to_message_id: int | None = None
 
 
 class BotCommand(BaseModel):
@@ -146,6 +147,9 @@ class ProfileRepo(Protocol):
 
     def get_by_name(self, name: str) -> Profile | None:
         """Look up a profile by unique name. Returns None if not found."""
+
+    def get_by_id(self, profile_id: int) -> Profile | None:
+        """Look up a profile by id. Returns None if not found."""
 
     def update(self, profile: Profile) -> Profile:
         """Persist all fields of an existing profile. Bumps updated_at."""

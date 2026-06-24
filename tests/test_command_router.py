@@ -1,5 +1,9 @@
+from datetime import date
+
 from campcli.application import command_router
+from campcli.domain.models import Profile
 from campcli.domain.ports import TelegramUpdate
+from campcli.infrastructure.store import SqliteStore
 
 
 class TestDispatch:
@@ -53,3 +57,81 @@ class TestDispatch:
         assert result is not None
         assert result["type"] == "callback"
         assert "ON" in result["text"]
+
+    # ---- /not-interested --------------------------------------------------
+
+    def test_not_interested_standalone_shows_guidance(self, poller):
+        upd = TelegramUpdate(
+            update_id=3, chat_id="100", text="/not-interested", from_id=1,
+        )
+        result = command_router.dispatch(upd, poller, [1])
+        assert result is not None
+        assert result["type"] == "reply"
+        assert "Reply this command" in result["text"]
+
+    def test_not_interested_unknown_message_id(self, poller):
+        upd = TelegramUpdate(
+            update_id=3, chat_id="100", text="/not-interested",
+            from_id=1, reply_to_message_id=999,
+        )
+        result = command_router.dispatch(upd, poller, [1])
+        assert result is not None
+        assert result["type"] == "reply"
+        assert "Could not find" in result["text"]
+
+    def test_not_interested_unauthorized_user(self, store, poller):
+        profile = store.create(Profile(name="test", tg_allowed_ids=[2]))
+        store.add_tg_id("test", 2)
+        store.record_sent(
+            message_id=42, profile_id=profile.id,
+            park_id=1, date_start=date(2026, 7, 3), date_end=date(2026, 7, 5),
+        )
+        poller._profile_repo = store
+        upd = TelegramUpdate(
+            update_id=3, chat_id="100", text="/not-interested",
+            from_id=1, reply_to_message_id=42,
+        )
+        result = command_router.dispatch(upd, poller, [1])
+        assert result is not None
+        assert result["type"] == "reply"
+        assert "Not authorized" in result["text"]
+
+    def test_not_interested_already_marked(self, store, poller):
+        profile = store.create(Profile(name="test2", tg_allowed_ids=[1]))
+        store.add_tg_id("test2", 1)
+        store.record_sent(
+            message_id=43, profile_id=profile.id,
+            park_id=2, date_start=date(2026, 7, 10), date_end=date(2026, 7, 12),
+        )
+        store.add(
+            profile_id=profile.id, park_id=2,
+            date_start=date(2026, 7, 10), date_end=date(2026, 7, 12),
+        )
+        poller._profile_repo = store
+        upd = TelegramUpdate(
+            update_id=3, chat_id="100", text="/not-interested",
+            from_id=1, reply_to_message_id=43,
+        )
+        result = command_router.dispatch(upd, poller, [1])
+        assert result is not None
+        assert result["type"] == "reply"
+        assert "Already marked" in result["text"]
+
+    def test_not_interested_happy_path(self, store, poller):
+        profile = store.create(Profile(name="test3", tg_allowed_ids=[1]))
+        store.add_tg_id("test3", 1)
+        store.record_sent(
+            message_id=44, profile_id=profile.id,
+            park_id=1, date_start=date(2026, 7, 3), date_end=date(2026, 7, 5),
+        )
+        poller._profile_repo = store
+        upd = TelegramUpdate(
+            update_id=3, chat_id="100", text="/not-interested",
+            from_id=1, reply_to_message_id=44,
+        )
+        result = command_router.dispatch(upd, poller, [1])
+        assert result is not None
+        assert result["type"] == "reply"
+        assert "NotInterested recorded" in result["text"]
+        assert "Bowron Lake" in result["text"]
+        assert "2026-07-03" in result["text"]

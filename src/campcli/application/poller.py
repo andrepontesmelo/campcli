@@ -17,7 +17,7 @@ from .drive_times import DriveTimes
 from .telegram_users import build_verbose_chat_set
 from ..domain.booking_window import max_bookable_start
 from ..domain.models import Park, Profile, WeekendMatch
-from ..domain.ports import BCParksApi, Clock, ProfileRepo, SettingsRepo, Telegram
+from ..domain.ports import BCParksApi, Clock, NotInterestedRepo, ProfileRepo, SettingsRepo, Telegram
 from .search import expand_windows, is_covered
 from .search_notifier import SearchNotifier
 from .pricing import fee_per_night
@@ -35,6 +35,7 @@ class Poller:
         clock: Clock,
         drive_times: DriveTimes,
         profile_repo: ProfileRepo,
+        not_interested_repo: NotInterestedRepo | None = None,
     ) -> None:
         self._api = api
         self._telegram = telegram
@@ -43,6 +44,7 @@ class Poller:
         self._clock = clock
         self._drive_times = drive_times
         self._profile_repo = profile_repo
+        self._not_interested_repo = not_interested_repo
 
         # Cache of per-profile notifiers — persists across poll cycles so
         # NotificationPolicy dedup state (seen set) carries over.

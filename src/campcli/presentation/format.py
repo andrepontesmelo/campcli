@@ -213,6 +213,7 @@ def render_match_message(
         _weeks_label(next_gap_days, "after nearest booking"),
         f"   {url}",
     ])
+    lines.append("\nReply /not-interested to stop seeing this park for these dates.")
     return "\n".join(lines)
 
 

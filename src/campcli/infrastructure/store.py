@@ -217,6 +217,15 @@ class SqliteStore:
                 return None
             return self._load_children(conn, self._row_to_profile(row))
 
+    def get_by_id(self, profile_id: int) -> Profile | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM profiles WHERE id = ?", (profile_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            return self._load_children(conn, self._row_to_profile(row))
+
     def update(self, profile: Profile) -> Profile:
         now = self._clock.now().isoformat()
         with self._connect() as conn:

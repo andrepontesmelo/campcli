@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..domain.ports import BotCommand, TelegramUpdate
+from .catalog import find_park
 from .telegram_users import is_authorized, unauthorized_reply
 
 if TYPE_CHECKING:
@@ -19,6 +20,37 @@ if TYPE_CHECKING:
 #   {"type": "callback", "text": str}
 #   None  (no action)
 DispatchResult = dict[str, Any] | None
+
+
+def _cmd_not_interested(update: TelegramUpdate, poller: Poller) -> DispatchResult:
+    if update.reply_to_message_id is None:
+        return {"type": "reply", "text": "Reply this command to a notification message."}
+    ni_repo = poller._not_interested_repo
+    if ni_repo is None:
+        return {"type": "reply", "text": "NotInterested is not configured."}
+    entry = ni_repo.lookup_sent(update.reply_to_message_id)
+    if entry is None:
+        return {"type": "reply", "text": "Could not find the notification for this message."}
+    profile_id, park_id, date_start, date_end = entry
+    profile = poller._profile_repo.get_by_id(profile_id)
+    if profile is None:
+        return {"type": "reply", "text": "Could not find your profile."}
+    if update.from_id not in profile.tg_allowed_ids:
+        return {"type": "reply", "text": "Not authorized."}
+    try:
+        ni_repo.add(
+            profile_id=profile_id, park_id=park_id,
+            date_start=date_start, date_end=date_end,
+        )
+    except ValueError:
+        return {"type": "reply", "text": "Already marked not interested."}
+    parks = poller._api.list_parks()
+    park = find_park(parks, park_id)
+    park_name = park.name if park else f"park #{park_id}"
+    return {
+        "type": "reply",
+        "text": f"NotInterested recorded: {park_name} {date_start} – {date_end}",
+    }
 
 
 def _cmd_verbose_bare(tg_id: int, poller: Poller) -> DispatchResult:
@@ -52,6 +84,7 @@ COMMANDS: dict[str, str] = {
     "/verbose": "verbose_bare",
     "/verbose on": "verbose_on",
     "/verbose off": "verbose_off",
+    "/not-interested": "not_interested",
 }
 
 # Commands to register via setMyCommands
@@ -104,4 +137,6 @@ def dispatch(
         return _cmd_verbose_on(from_id, poller)
     if cmd_name == "verbose_off":
         return _cmd_verbose_off(from_id, poller)
+    if cmd_name == "not_interested":
+        return _cmd_not_interested(update, poller)
     return None

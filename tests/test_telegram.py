@@ -29,6 +29,57 @@ class TestHttpxTelegramInit:
 
 
 class TestHttpxTelegramPollUpdates:
+    def test_parses_reply_to_message_id(self, httpx_mock):
+        httpx_mock.add_response(
+            url="https://api.telegram.org/botabc:123/getUpdates?timeout=0",
+            method="GET",
+            json={
+                "ok": True,
+                "result": [
+                    {
+                        "update_id": 1,
+                        "message": {
+                            "message_id": 10,
+                            "chat": {"id": 100},
+                            "from": {"id": 42},
+                            "text": "/not-interested",
+                            "reply_to_message": {"message_id": 5},
+                        },
+                    },
+                ],
+            },
+        )
+        tg = HttpxTelegram(token="abc:123")
+        updates = tg.poll_updates()
+        assert len(updates) == 1
+        assert updates[0].reply_to_message_id == 5
+        tg.close()
+
+    def test_reply_to_message_id_none_when_absent(self, httpx_mock):
+        httpx_mock.add_response(
+            url="https://api.telegram.org/botabc:123/getUpdates?timeout=0",
+            method="GET",
+            json={
+                "ok": True,
+                "result": [
+                    {
+                        "update_id": 1,
+                        "message": {
+                            "message_id": 10,
+                            "chat": {"id": 100},
+                            "from": {"id": 42},
+                            "text": "/verbose",
+                        },
+                    },
+                ],
+            },
+        )
+        tg = HttpxTelegram(token="abc:123")
+        updates = tg.poll_updates()
+        assert len(updates) == 1
+        assert updates[0].reply_to_message_id is None
+        tg.close()
+
     def test_returns_all_updates_unfiltered(self, httpx_mock):
         httpx_mock.add_response(
             url="https://api.telegram.org/botabc:123/getUpdates?timeout=0",
