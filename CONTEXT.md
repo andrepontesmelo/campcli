@@ -34,6 +34,10 @@ _Avoid_: result, hit
 **Profile**:
 The search preferences — weekend patterns, horizon in months, max drive hours.
 
+**NotInterested**:
+A profile-level statement that a specific Park on a specific date range should not be suggested again. Scoped to (profile, park, date_start, date_end). The same Park with a different date range can still be suggested.
+_Avoid_: suppressed match, muted, skipped
+
 **DriveTimes**:
 A read-only value object over geocoded driving durations from home to each Park; the seam for drive-time data. Application and Presentation receive it instead of reading the JSON cache.
 _Avoid_: drive cache, drive_cache dict
@@ -44,7 +48,8 @@ _Avoid_: drive cache, drive_cache dict
 - A **Watch** names a **Park** and a date range; running it yields **AvailableSites**
 - `search` expands a **Profile** into weekend windows and produces **WeekendMatches**
 - **DriveTimes** is keyed by **Park** id; `search` and the parks listing filter **Parks** through it
-- A **BlockedPark** suppresses **WeekendMatch** notifications for that **Park**
+- A **BlockedPark** suppresses **WeekendMatch** notifications for that **Park** (DEPRECATED per ADR-0011)
+- A **NotInterested** suppresses **WeekendMatch** suggestions for a specific (profile, park, date_start, date_end)
 
 ## Example dialogue
 
