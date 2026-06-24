@@ -2,12 +2,12 @@
 
 Before the refactor these rules were only reachable through SearchNotifier and
 its Telegram + render dependencies; now the decision is a pure function of
-(match, bookings, blocked) and is asserted directly.
+(match, booking_starts, blocked) and is asserted directly.
 """
 from datetime import date
 
 from campcli.application.notification_policy import NotificationPolicy
-from campcli.domain.models import Booking, WeekendMatch
+from campcli.domain.models import WeekendMatch
 
 
 def make_match(**kw):
@@ -18,11 +18,6 @@ def make_match(**kw):
     )
     defaults.update(kw)
     return WeekendMatch(**defaults)
-
-
-def make_booking(start: date) -> Booking:
-    return Booking(park_id=99, park_name="Other", start_date=start,
-                   end_date=start)
 
 
 class TestDecide:
@@ -40,19 +35,19 @@ class TestDecide:
     def test_booking_within_rest_days_suppressed(self):
         policy = NotificationPolicy()
         # 13 days from the match start -> inside the 14-day REST window
-        policy.update_context([make_booking(date(2026, 8, 28))], set())
+        policy.update_context([date(2026, 8, 28)], set())
         assert policy.decide(make_match()) is None
 
     def test_booking_outside_rest_days_clears(self):
         policy = NotificationPolicy()
-        policy.update_context([make_booking(date(2026, 9, 1))], set())
+        policy.update_context([date(2026, 9, 1)], set())
         assert policy.decide(make_match()) is not None
 
     def test_rest_days_zero_disables_suppression(self):
-        """When rest_days=0, a same-day booking does not suppress."""
+        """When rest_days=0, a same-day booking_starts does not suppress."""
         policy = NotificationPolicy(rest_days=0)
         # Same day as match start (Aug 15).
-        policy.update_context([make_booking(date(2026, 8, 15))], set())
+        policy.update_context([date(2026, 8, 15)], set())
         assert policy.decide(make_match()) is not None
 
 

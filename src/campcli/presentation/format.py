@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from ..application.booking_links import quote_url
 from ..domain.holidays import nearest_holiday
 from ..application.drive_times import DriveTimes
-from ..domain.models import AvailableSite, Booking, Map, Park, Watch, WeekendMatch
+from ..domain.models import AvailableSite, Map, Park, WeekendMatch
 
 
 def _holiday_suffix(start: date, end: date) -> str:
@@ -63,31 +63,6 @@ def render_park_detail(park: Park, maps: list[Map], drive_times: DriveTimes) -> 
         lines.append(f"    - {m.name}  (map_id={m.map_id})")
     return "\n".join(lines)
 
-
-def render_watch(w: Watch) -> str:
-    label = f' "{w.label}"' if w.label else ""
-    return (
-        f"#{w.id}{label}  park={w.park_id}  "
-        f"{w.start_date.isoformat()} +{w.nights}n  party={w.party_size}"
-    )
-
-
-def render_watches(watches: list[Watch]) -> str:
-    if not watches:
-        return "no watches"
-    return "\n".join(render_watch(w) for w in watches)
-
-
-def render_booking(b: Booking) -> str:
-    site = f" #{b.site_name}" if b.site_name else ""
-    map_part = f" — {b.map_name}" if b.map_name else ""
-    fee = f" ${b.fee:.2f}" if b.fee is not None else ""
-    party = f" party={b.party_size}" if b.party_size is not None else ""
-    notes = f"  ({b.notes})" if b.notes else ""
-    return (
-        f"#{b.id}  {b.park_name}{map_part}{site}  "
-        f"{b.start_date.isoformat()} → {b.end_date.isoformat()}{fee}{party}{notes}"
-    )
 
 
 def render_available(s: AvailableSite, *, with_url: bool = True) -> str:

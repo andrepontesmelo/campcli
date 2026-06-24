@@ -6,8 +6,9 @@ sender adapter that turns a cleared Notification into a Telegram message.
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import date
 
-from ..domain.models import Booking, WeekendMatch
+from ..domain.models import WeekendMatch
 from ..domain.ports import Telegram
 from ..presentation.format import render_match_message
 from .drive_times import DriveTimes
@@ -32,10 +33,10 @@ class SearchNotifier:
 
     def start_poll(
         self,
-        bookings: list[Booking],
+        booking_starts: list[date],
         blocked_park_ids: set[int],
     ) -> None:
-        self._policy.update_context(bookings, blocked_park_ids)
+        self._policy.update_context(booking_starts, blocked_park_ids)
 
     def notify(self, match: WeekendMatch, *, chat_ids: list[str]) -> None:
         decision = self._policy.decide(match)

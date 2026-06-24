@@ -124,7 +124,6 @@ def poller(store, clock, fake_api, fake_telegram, fake_notifier):
     return Poller(
         api=fake_api, telegram=fake_telegram,
         notifier=fake_notifier,
-        booking_repo=store, blocked_repo=store,
         settings_repo=store, clock=clock,
         drive_times=DriveTimes.empty(),
     )

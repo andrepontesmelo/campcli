@@ -1,4 +1,4 @@
-"""Domain port: BCParksApi Protocol + error types + Repo Protocols + Clock.
+"""Domain port: BCParksApi Protocol + error types + repo protocols + Clock.
 
 This is the seam that inverts the Application → Infrastructure dependency.
 Application code depends on this Protocol; Infrastructure (api.py) satisfies it.
@@ -11,7 +11,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from .models import BlockedPark, Booking, Map, Park, Watch
+from .models import Map, Park
 
 
 class ApiError(RuntimeError):
@@ -52,47 +52,6 @@ class BCParksApi(Protocol):
 
     def resource_details(self, *, park_id: int, map_id: int) -> Any:
         """Fetch map/resource details for fee extraction."""
-
-
-# ----- Repo Protocols --------------------------------------------------------
-
-class WatchRepo(Protocol):
-    """Persistent storage for Watch domain objects."""
-
-    def add_watch(self, watch: Watch) -> Watch:
-        """Persist a new Watch; returns it with id populated."""
-
-    def list_watches(self) -> list[Watch]:
-        """Return all watches, ordered by id."""
-
-    def remove_watch(self, watch_id: int) -> bool:
-        """Delete a watch by id. Returns True if a row was removed."""
-
-
-class BookingRepo(Protocol):
-    """Persistent storage for Booking domain objects."""
-
-    def add_booking(self, booking: Booking) -> Booking:
-        """Persist a new Booking; returns it with id populated."""
-
-    def list_bookings(self) -> list[Booking]:
-        """Return all bookings, ordered by start_date."""
-
-    def remove_booking(self, booking_id: int) -> bool:
-        """Delete a booking by id. Returns True if a row was removed."""
-
-
-class BlockedParkRepo(Protocol):
-    """Persistent storage for blocked (undesired) parks."""
-
-    def add_blocked(self, blocked: BlockedPark) -> BlockedPark:
-        """Persist a blocked park (INSERT OR REPLACE)."""
-
-    def list_blocked(self) -> list[BlockedPark]:
-        """Return all blocked parks, ordered by park_name."""
-
-    def remove_blocked(self, park_id: int) -> bool:
-        """Unblock a park by id. Returns True if a row was removed."""
 
 
 class SettingsRepo(Protocol):

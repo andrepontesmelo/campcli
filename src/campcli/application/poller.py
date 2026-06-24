@@ -10,8 +10,6 @@ from .drive_times import DriveTimes
 from .telegram_users import build_verbose_chat_set
 from ..domain.ports import (
     BCParksApi,
-    BlockedParkRepo,
-    BookingRepo,
     Clock,
     SettingsRepo,
     Telegram,
@@ -28,8 +26,6 @@ class Poller:
         api: BCParksApi,
         telegram: Telegram,
         notifier: SearchNotifier,
-        booking_repo: BookingRepo,
-        blocked_repo: BlockedParkRepo,
         settings_repo: SettingsRepo,
         clock: Clock,
         drive_times: DriveTimes,
@@ -38,8 +34,6 @@ class Poller:
         self._api = api
         self._telegram = telegram
         self._notifier = notifier
-        self._booking_repo = booking_repo
-        self._blocked_repo = blocked_repo
         self._settings_repo = settings_repo
         self._clock = clock
         self._drive_times = drive_times
@@ -77,12 +71,8 @@ class Poller:
         self.run_search_once()
 
     def run_search_once(self) -> None:
-        bookings = self._booking_repo.list_bookings()
-        blocked_ids = {b.park_id for b in self._blocked_repo.list_blocked()}
-        self._notifier.start_poll(bookings, blocked_ids)
-        self.log(
-            f"poll start (bookings={len(bookings)}, blocked={len(blocked_ids)})"
-        )
+        self._notifier.start_poll([], set())
+        self.log("poll start")
 
         allowed_ids = self._profile.allowed_park_ids or None
         for match in run_search(

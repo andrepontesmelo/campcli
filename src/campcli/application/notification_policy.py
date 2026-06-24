@@ -1,7 +1,7 @@
 """NotificationPolicy: the single decision of whether a WeekendMatch notifies.
 
-Owns every suppression rule in one place — BlockedPark, booking-adjacency
-(rest_days), and dedup — plus the booking-gap computation the message needs.
+Owns every suppression rule in one place — booking-adjacency (rest_days) and
+dedup — plus the booking-gap computation the message needs.
 Pure decision + in-memory dedup state; no I/O, no rendering.
 
 Sender flow:
@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-from ..domain.models import Booking, WeekendMatch
+from ..domain.models import WeekendMatch
 from .filters import gap_days_to_nearest, is_too_close
 
 _Key = tuple[int, int, date, int]
@@ -35,15 +35,15 @@ class Notification:
 class NotificationPolicy:
     def __init__(self, rest_days: int = 14) -> None:
         self._seen: set[_Key] = set()
-        self._bookings: list[Booking] = []
+        self._booking_starts: list[date] = []
         self._blocked_park_ids: set[int] = set()
         self._rest_days = rest_days
 
     def update_context(
-        self, bookings: list[Booking], blocked_park_ids: set[int]
+        self, booking_starts: list[date], blocked_park_ids: set[int]
     ) -> None:
-        """Refresh the Bookings / BlockedParks the next decisions are made against."""
-        self._bookings = bookings
+        """Refresh the booking starts / blocked park IDs the next decisions are made against."""
+        self._booking_starts = booking_starts
         self._blocked_park_ids = blocked_park_ids
 
     @staticmethod
@@ -60,11 +60,11 @@ class NotificationPolicy:
         if key in self._seen:
             return None
         if match.park_id in self._blocked_park_ids or is_too_close(
-            match.start_date, self._bookings, rest_days=self._rest_days,
+            match.start_date, self._booking_starts, rest_days=self._rest_days,
         ):
             self._seen.add(key)
             return None
-        prev_gap, next_gap = gap_days_to_nearest(match.start_date, self._bookings)
+        prev_gap, next_gap = gap_days_to_nearest(match.start_date, self._booking_starts)
         return Notification(match, prev_gap, next_gap)
 
     def mark_sent(self, notification: Notification) -> None:

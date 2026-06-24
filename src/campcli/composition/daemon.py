@@ -44,7 +44,6 @@ def run_forever(
         poller = Poller(
             api=api, telegram=telegram,
             notifier=notifier,
-            booking_repo=store, blocked_repo=store,
             settings_repo=store, clock=clock,
             drive_times=drive_times,
             profile=profile,

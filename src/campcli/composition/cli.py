@@ -9,13 +9,10 @@ from datetime import date
 
 import typer
 
-from ..application import bookings
-from ..application import blocked
 from ..application import catalog
 from . import daemon as daemon_svc
 from ..presentation import format as fmt
 from ..application import search
-from ..application import watches as watch_svc
 from ..infrastructure.api import BCParksClient
 from ..application.availability import check_park
 from ..application.booking_links import quote_url
@@ -109,18 +106,12 @@ def api_call():
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 parks_app = typer.Typer(no_args_is_help=True, help="Discover parks and sub-areas (maps).")
-watch_app = typer.Typer(no_args_is_help=True, help="Manage persistent availability watches.")
 book_app = typer.Typer(no_args_is_help=True, help="Booking deep-link helpers.")
 catalog_app = typer.Typer(no_args_is_help=True, help="Manage the cached park catalog.")
-bookings_app = typer.Typer(no_args_is_help=True, help="Manage existing campsite bookings.")
-blocked_app = typer.Typer(no_args_is_help=True, help="Manage the blocklist of unwanted parks.")
 telegram_app = typer.Typer(no_args_is_help=True, help="Manage authorized Telegram users.")
 app.add_typer(parks_app, name="parks")
-app.add_typer(watch_app, name="watch")
 app.add_typer(book_app, name="book")
 app.add_typer(catalog_app, name="catalog")
-app.add_typer(bookings_app, name="bookings")
-app.add_typer(blocked_app, name="blocked")
 app.add_typer(telegram_app, name="telegram")
 config_app = typer.Typer(no_args_is_help=True, help="Manage global settings.")
 app.add_typer(config_app, name="config")
@@ -247,60 +238,6 @@ def search_cmd(
         raise typer.Exit(code=3)
 
 
-# ----- watch -----------------------------------------------------------------
-
-@watch_app.command("add")
-def watch_add(
-    park: int = typer.Option(..., "--park", "-p"),
-    start: str = typer.Option(..., "--start"),
-    nights: int = typer.Option(..., "--nights", "-n"),
-    party_size: int = typer.Option(1, "--party-size"),
-    label: str | None = typer.Option(None, "--label"),
-) -> None:
-    start_d = _parse_date_or_exit(start)
-    cutoff = max_bookable_start()
-    if start_d > cutoff:
-        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
-    w = watch_svc.add(park, start_d, nights, party_size, label,
-                      watch_repo=_store(), clock=_CLOCK)
-    typer.echo(fmt.render_watch(w))
-
-
-@watch_app.command("list")
-def watch_list() -> None:
-    typer.echo(fmt.render_watches(_store().list_watches()))
-
-
-@watch_app.command("rm")
-def watch_rm(watch_id: int = typer.Argument(...)) -> None:
-    if not _store().remove_watch(watch_id):
-        typer.echo(f"watch {watch_id} not found", err=True)
-        raise typer.Exit(code=2)
-    typer.echo(f"removed watch {watch_id}")
-
-
-@watch_app.command("run")
-def watch_run(
-    watch_id: int | None = typer.Option(None, "--watch-id"),
-) -> None:
-    with api_call() as api:
-        results = watch_svc.run_all(api, watch_repo=_store(), watch_id=watch_id)
-    if not results:
-        typer.echo("no watches" if watch_id is None else f"watch {watch_id} not found")
-        raise typer.Exit(code=2 if watch_id is not None else 0)
-    any_available = False
-    for w, sites in results:
-        header = f"== {fmt.render_watch(w)} =="
-        if sites:
-            any_available = True
-            typer.echo(header)
-            typer.echo(fmt.render_available_list(sites))
-        else:
-            typer.echo(f"{header}\nno availability")
-    if not any_available:
-        raise typer.Exit(code=3)
-
-
 # ----- book ------------------------------------------------------------------
 
 @book_app.command("open")
@@ -402,80 +339,6 @@ def config_show() -> None:
         typer.echo(f"request_interval_secs: {DEFAULT_REQUEST_INTERVAL_SECS}s (default)")
     else:
         typer.echo(f"request_interval_secs: {raw}s")
-
-
-# ----- bookings --------------------------------------------------------------
-
-@bookings_app.command("list")
-def bookings_list() -> None:
-    rows = _store().list_bookings()
-    if not rows:
-        typer.echo("no bookings")
-        return
-    for b in rows:
-        typer.echo(fmt.render_booking(b))
-
-
-@bookings_app.command("add")
-def bookings_add(
-    park: str = typer.Option(..., "--park", help="Park name (substring or exact)."),
-    start: str = typer.Option(..., "--start", help="YYYY-MM-DD check-in date."),
-    nights: int = typer.Option(..., "--nights", "-n"),
-    map_name: str | None = typer.Option(None, "--map", help="Sub-area / loop name."),
-    site: str | None = typer.Option(None, "--site", help="Site label, e.g. B31."),
-    party: int | None = typer.Option(None, "--party"),
-    fee: float | None = typer.Option(None, "--fee"),
-    notes: str | None = typer.Option(None, "--notes"),
-) -> None:
-    start_d = _parse_date_or_exit(start)
-    cutoff = max_bookable_start()
-    if start_d > cutoff:
-        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
-    with api_call() as api:
-        saved = bookings.add(
-            api, park_query=park, start=start_d, nights=nights,
-            map_name=map_name, site=site,
-            party_size=party, fee=fee, notes=notes,
-            booking_repo=_store(), clock=_CLOCK,
-        )
-    typer.echo(fmt.render_booking(saved))
-
-
-@bookings_app.command("rm")
-def bookings_rm(booking_id: int = typer.Argument(...)) -> None:
-    if not _store().remove_booking(booking_id):
-        typer.echo(f"booking {booking_id} not found", err=True)
-        raise typer.Exit(code=2)
-    typer.echo(f"removed booking {booking_id}")
-
-
-# ----- blocked ---------------------------------------------------------------
-
-@blocked_app.command("list")
-def blocked_list() -> None:
-    rows = _store().list_blocked()
-    if not rows:
-        typer.echo("no blocked parks")
-        return
-    for bp in rows:
-        typer.echo(f"{bp.park_id}\t{bp.park_name}")
-
-
-@blocked_app.command("add")
-def blocked_add(park: str = typer.Argument(..., help="Park name (substring or exact).")) -> None:
-    with api_call() as api:
-        bp = blocked.add(api, park, blocked_repo=_store(), clock=_CLOCK)
-    typer.echo(f"blocked: {bp.park_name} (id={bp.park_id})")
-
-
-@blocked_app.command("rm")
-def blocked_rm(park: str = typer.Argument(..., help="Park name or numeric id.")) -> None:
-    with api_call() as api:
-        removed = blocked.remove(api, park, blocked_repo=_store())
-    if not removed:
-        typer.echo(f"park {park} not in blocklist", err=True)
-        raise typer.Exit(code=2)
-    typer.echo(f"unblocked {park}")
 
 
 # ----- telegram --------------------------------------------------------------

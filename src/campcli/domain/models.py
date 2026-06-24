@@ -37,31 +37,4 @@ class WeekendMatch(BaseModel):
     fee_per_night: float | None = None
 
 
-class Watch(BaseModel):
-    id: int | None = None
-    park_id: int
-    start_date: date
-    nights: int
-    party_size: int = 1
-    label: str | None = None
-    created_at: datetime | None = None
 
-
-class Booking(BaseModel):
-    id: int | None = None
-    park_id: int
-    park_name: str
-    map_name: str | None = None
-    site_name: str | None = None
-    start_date: date
-    end_date: date
-    party_size: int | None = None
-    fee: float | None = None
-    notes: str | None = None
-    created_at: datetime | None = None
-
-
-class BlockedPark(BaseModel):
-    park_id: int
-    park_name: str
-    added_at: datetime | None = None
