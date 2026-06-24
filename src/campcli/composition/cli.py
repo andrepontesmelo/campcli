@@ -29,7 +29,7 @@ from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES
 from ..domain.booking_window import max_bookable_start
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
-from ..domain.ports import ApiError, RateLimited
+from ..domain.ports import ApiError, ProfileRepo, RateLimited
 from ..infrastructure.store import SqliteStore
 
 
@@ -137,12 +137,87 @@ def _confirm_profile_exists(store: SqliteStore, name: str) -> Profile:
     return profile
 
 
-def _get_single_enabled_profile(store: SqliteStore) -> Profile | None:
-    """Return the single enabled profile, or None if zero/multiple."""
-    profiles = store.list_enabled()
-    if len(profiles) == 1:
-        return profiles[0]
-    return None
+def resolve_profile(
+    profile_repo: ProfileRepo,
+    requested: str | None,
+) -> Profile:
+    """Resolve the active profile for a CLI invocation.
+
+    - requested is given (via --profile): use it if it exists and is enabled; error otherwise.
+    - requested is None: count enabled profiles.
+      - 0: error 'no enabled profiles found; create one with ``campcli profile create <name>``'
+      - 1: auto-select that profile.
+      - 2+: error 'multiple enabled profiles; specify --profile <name>'.
+
+    Returns the resolved Profile.
+    Raises typer.Exit on error.
+    """
+    if requested is not None:
+        profile = profile_repo.get_by_name(requested)
+        if profile is None:
+            typer.echo(f"error: profile {requested!r} not found", err=True)
+            raise typer.Exit(code=2)
+        if not profile.enabled:
+            typer.echo(f"error: profile {requested!r} is disabled", err=True)
+            raise typer.Exit(code=2)
+        return profile
+
+    enabled = profile_repo.list_enabled()
+    if len(enabled) == 0:
+        typer.echo(
+            "error: no enabled profiles found; "
+            "create one with `campcli profile create <name>`",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    if len(enabled) > 1:
+        typer.echo(
+            "error: multiple enabled profiles found; specify --profile <name>",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+    # Exactly one enabled profile.
+    typer.echo(f"using profile {enabled[0].name!r}", err=True)
+    return enabled[0]
+
+
+def _search_for_profile(
+    profile: Profile,
+    *,
+    months: int | None = None,
+    distance: str | None = None,
+    group_by: str = "weekend",
+    with_urls: bool = False,
+    limit_parks: int | None = None,
+) -> None:
+    """Run search for a profile and render results."""
+    drive_times = load_drive_times()
+
+    def progress(msg: str) -> None:
+        typer.echo(msg, err=True)
+
+    with api_call() as api:
+        if months is not None:
+            profile.max_horizon_months = months
+        parsed_distance = _parse_hours_or_exit(distance)
+        if parsed_distance is not None:
+            profile.max_drive_hours = parsed_distance
+
+        allowed_ids = (
+            resolve_profile_parks(api, profile.parks)
+            if profile.parks
+            else None
+        )
+        matches = list(search.run(
+            api, profile, drive_times=drive_times,
+            allowed_park_ids=allowed_ids,
+            limit_parks=limit_parks, progress=progress,
+        ))
+    typer.echo(fmt.render_search_results(
+        matches, group_by=group_by, with_urls=with_urls, drive_times=drive_times,
+    ))
+    if not matches:
+        raise typer.Exit(code=3)
 
 
 # ----- parks -----------------------------------------------------------------
@@ -201,7 +276,14 @@ def check(
     nights: int = typer.Option(..., "--nights", "-n"),
     party_size: int = typer.Option(1, "--party-size"),
     map_id: int | None = typer.Option(None, "--map", help="Limit to one map (sub-area)."),
+    profile_name: str | None = typer.Option(
+        None, "--profile", "-P",
+        help="Profile name (uses the single enabled profile if omitted).",
+    ),
 ) -> None:
+    _run_profile_migration()
+    store = _store()
+    resolve_profile(store, profile_name)  # resolves profile for context
     start_d = _parse_date_or_exit(start)
     cutoff = max_bookable_start()
     if start_d > cutoff:
@@ -241,53 +323,23 @@ def search_cmd(
         help="Profile name (uses the single enabled profile if omitted).",
     ),
 ) -> None:
+    """Search campsites using profile PARKS and PATTERNS (uses --profile or the single enabled profile)."""
     if group_by not in ("weekend", "park"):
         typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
         raise typer.Exit(code=1)
-    drive_times = load_drive_times()
 
     _run_profile_migration()
     store = _store()
-
-    # Pick the profile.
-    if profile_name is not None:
-        profile = _confirm_profile_exists(store, profile_name)
-    else:
-        profile = _get_single_enabled_profile(store)
-        if profile is None:
-            typer.echo(
-                "error: no single enabled profile — use --profile to pick one",
-                err=True,
-            )
-            raise typer.Exit(code=2)
-
-    def progress(msg: str) -> None:
-        typer.echo(msg, err=True)
-
-    with api_call() as api:
-        # CLI flags override profile values.
-        if months is not None:
-            profile.max_horizon_months = months
-        parsed_distance = _parse_hours_or_exit(distance)
-        if parsed_distance is not None:
-            profile.max_drive_hours = parsed_distance
-
-        # Resolve park queries → allowed_park_ids.
-        allowed_ids = (
-            resolve_profile_parks(api, profile.parks)
-            if profile.parks
-            else None
-        )
-        matches = list(search.run(
-            api, profile, drive_times=drive_times,
-            allowed_park_ids=allowed_ids,
-            limit_parks=limit_parks, progress=progress,
-        ))
-    typer.echo(fmt.render_search_results(
-        matches, group_by=group_by, with_urls=with_urls, drive_times=drive_times,
-    ))
-    if not matches:
-        raise typer.Exit(code=3)
+    profile = resolve_profile(store, profile_name)
+    typer.echo(f"Profile: {profile.name}", err=True)
+    _search_for_profile(
+        profile,
+        months=months,
+        distance=distance,
+        group_by=group_by,
+        with_urls=with_urls,
+        limit_parks=limit_parks,
+    )
 
 
 # ----- book ------------------------------------------------------------------
@@ -506,6 +558,45 @@ def profile_show(
     typer.echo(f"tg_allowed_ids:               {profile.tg_allowed_ids or '-'}")
     typer.echo(f"created_at:                   {profile.created_at or '-'}")
     typer.echo(f"updated_at:                   {profile.updated_at or '-'}")
+
+
+@profile_app.command("search")
+def profile_search(
+    name: str = typer.Argument(..., help="Profile name."),
+    months: int | None = typer.Option(None, "--months", help="Override profile horizon (months)."),
+    distance: str | None = typer.Option(
+        None, "--distance", "-d",
+        help="Override max drive time (e.g. '4h', '3h30m', '210m').",
+    ),
+    group_by: str = typer.Option(
+        "weekend", "--group-by", "-g",
+        help="Top-level grouping: 'weekend' (default) or 'park'.",
+    ),
+    with_urls: bool = typer.Option(
+        False, "--with-urls", "-u",
+        help="Print a clickable booking deep-link under each match.",
+    ),
+    limit_parks: int | None = typer.Option(None, "--limit-parks", hidden=True),
+) -> None:
+    """Search campsites for a named profile (explicit form)."""
+    _run_profile_migration()
+    store = _store()
+    profile = _confirm_profile_exists(store, name)
+    if not profile.enabled:
+        typer.echo(f"error: profile {name!r} is disabled", err=True)
+        raise typer.Exit(code=2)
+    if group_by not in ("weekend", "park"):
+        typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Profile: {profile.name}", err=True)
+    _search_for_profile(
+        profile,
+        months=months,
+        distance=distance,
+        group_by=group_by,
+        with_urls=with_urls,
+        limit_parks=limit_parks,
+    )
 
 
 @profile_app.command("enable")
