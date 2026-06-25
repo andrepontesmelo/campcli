@@ -23,7 +23,7 @@ appear. Runs as a per-user systemd unit (no root needed).
 3. Install the unit:
 
    ```sh
-   mkdir -p ~/.config/systemd/user
+   mkdir -p ~/.config/systemd/user ~/.local/state/campcli
    cp contrib/campcli-daemon.service ~/.config/systemd/user/
    loginctl enable-linger $USER          # survive logout
    systemctl --user daemon-reload

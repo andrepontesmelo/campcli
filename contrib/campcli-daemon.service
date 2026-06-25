@@ -10,10 +10,10 @@ ExecStart=%h/.local/bin/campcli daemon
 Restart=on-failure
 RestartSec=15
 # Keep app logs out of the global journal; write to a dedicated file.
-# StateDirectory creates %S/campcli (~/.local/state/campcli) before log setup.
-StateDirectory=campcli
-StandardOutput=append:%S/campcli/daemon.log
-StandardError=append:%S/campcli/daemon.log
+# The dir must already exist — systemd opens these before StateDirectory/
+# ExecStartPre run. Create once: mkdir -p ~/.local/state/campcli
+StandardOutput=append:%h/.local/state/campcli/daemon.log
+StandardError=append:%h/.local/state/campcli/daemon.log
 
 [Install]
 WantedBy=default.target
