@@ -6,9 +6,13 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/campcli/telegram.env
+ExecStartPre=/usr/bin/mkdir -p %h/.local/state/campcli
 ExecStart=%h/.local/bin/campcli daemon
 Restart=on-failure
 RestartSec=15
+# Keep app logs out of the global journal; write to a dedicated file.
+StandardOutput=append:%h/.local/state/campcli/daemon.log
+StandardError=append:%h/.local/state/campcli/daemon.log
 
 [Install]
 WantedBy=default.target

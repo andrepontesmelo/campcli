@@ -13,6 +13,7 @@ from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..infrastructure.store import SqliteStore
 from ..infrastructure.telegram import HttpxTelegram
 from ..application.migrate_profile import migrate_profile_json_to_db
+from ..application.daemon_log import WARNING
 from ..application.poller import Poller
 from ..application.search_notifier import SearchNotifier
 from ..application.throttle import read_request_interval
@@ -37,7 +38,7 @@ def run_forever(
         return SearchNotifier(
             telegram=telegram,
             drive_times=drive_times,
-            log=lambda msg: None,  # overridden by poller after construction
+            log=lambda *a: None,  # overridden by poller after construction
             not_interested_repo=store,
             rest_days=profile.rest_days_between_bookings,
         )
@@ -73,6 +74,6 @@ def run_forever(
                 stop.set()
                 return
             except Exception as e:
-                poller.log(f"poll iteration failed: {e}")
+                poller.log(f"poll iteration failed: {e}", WARNING)
                 traceback.print_exc(file=sys.stderr)
                 time.sleep(interval_secs)

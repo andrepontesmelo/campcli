@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 from . import command_router
 from .catalog import resolve_map, resolve_park
-from .daemon_log import DaemonLog
+from .daemon_log import DaemonLog, INFO, WARNING
 from .drive_times import DriveTimes
 from .telegram_users import build_verbose_chat_set
 from ..domain.booking_window import max_bookable_start
@@ -77,7 +77,7 @@ class Poller:
         try:
             self._telegram.set_my_commands(command_router.BOT_COMMANDS)
         except Exception as e:
-            self.log(f"setMyCommands failed: {e}")
+            self.log(f"setMyCommands failed: {e}", WARNING)
         # Notify all authorized users who have a known chat
         for tg_id in self._tg_allowed_ids:
             chat = self._settings_repo.get_setting(f"chat:{tg_id}")
@@ -87,7 +87,7 @@ class Poller:
                         chat, "campcli daemon started v3"
                     )
                 except Exception as e:
-                    self.log(f"startup telegram to {tg_id} failed: {e}")
+                    self.log(f"startup telegram to {tg_id} failed: {e}", WARNING)
 
     def run_search_once(self) -> None:
         self._refresh_tg_allowed_ids()
@@ -288,7 +288,7 @@ class Poller:
                 for upd in updates:
                     self._process_update(upd)
             except Exception as e:
-                self.log(f"command loop error: {e}")
+                self.log(f"command loop error: {e}", WARNING)
                 time.sleep(1)
 
     def _get_verbose(self, tg_id: int) -> bool:
@@ -312,8 +312,8 @@ class Poller:
     def _get_chat_id_for_user(self, tg_id: int) -> str | None:
         return self._settings_repo.get_setting(f"chat:{tg_id}")
 
-    def log(self, msg: str) -> None:
-        self._log.log(msg)
+    def log(self, msg: str, level: int = INFO) -> None:
+        self._log.log(msg, level)
 
     def _process_update(self, upd) -> None:
         self._update_offset = upd.update_id + 1

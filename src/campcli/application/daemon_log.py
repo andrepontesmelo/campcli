@@ -1,12 +1,16 @@
 """DaemonLog — the daemon's log sink.
 
-Owns the one logging concern: every line goes to stderr, and for each chat
-in the verbose_chats set it is also mirrored to Telegram. Verbose state is
-per-chat, stored in a set of chat_ids.
+Owns the one logging concern: lines at or above min_level go to stderr, and
+every line (regardless of level) is mirrored to each chat in the verbose_chats
+set — that mirror is the /verbose feature and must stay chatty. Verbose state
+is per-chat, stored in a set of chat_ids.
 """
 from __future__ import annotations
 
 from ..domain.ports import Clock, Telegram
+
+INFO = 20
+WARNING = 30
 
 
 class DaemonLog:
@@ -16,10 +20,12 @@ class DaemonLog:
         telegram: Telegram,
         *,
         verbose_chats: set[str] | None = None,
+        min_level: int = WARNING,
     ) -> None:
         self._clock = clock
         self._telegram = telegram
         self._verbose_chats: set[str] = verbose_chats or set()
+        self._min_level = min_level
 
     def set_verbose_chats(self, chats: set[str]) -> None:
         self._verbose_chats = set(chats)
@@ -30,11 +36,12 @@ class DaemonLog:
         else:
             self._verbose_chats.discard(chat_id)
 
-    def log(self, msg: str) -> None:
+    def log(self, msg: str, level: int = INFO) -> None:
         import sys
 
         line = f"[{self._clock.now().isoformat(timespec='seconds')}] {msg}"
-        print(line, file=sys.stderr, flush=True)
+        if level >= self._min_level:
+            print(line, file=sys.stderr, flush=True)
         for chat_id in self._verbose_chats:
             try:
                 self._telegram.send_to(chat_id, line)

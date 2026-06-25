@@ -8,6 +8,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date
 
+from .daemon_log import WARNING
+
 from ..domain.models import WeekendMatch
 from ..domain.ports import NotInterestedRepo, Telegram
 from ..presentation.format import render_match_message
@@ -20,7 +22,7 @@ class SearchNotifier:
         self,
         telegram: Telegram,
         drive_times: DriveTimes,
-        log: Callable[[str], None],
+        log: Callable[..., None],
         not_interested_repo: NotInterestedRepo,
         rest_days: int = 14,
     ) -> None:
@@ -32,7 +34,7 @@ class SearchNotifier:
         self._skip_set: set[tuple[int, date, date]] | None = None
         self._profile_id: int | None = None
 
-    def set_log(self, log: Callable[[str], None]) -> None:
+    def set_log(self, log: Callable[..., None]) -> None:
         self._log = log
 
     def start_poll(
@@ -71,7 +73,7 @@ class SearchNotifier:
                     date_end=match.end_date,
                 )
             except Exception as e:
-                self._log(f"telegram send to {chat_id} failed: {e}")
+                self._log(f"telegram send to {chat_id} failed: {e}", WARNING)
         if sent_ok:
             self._policy.mark_sent(decision)
             self._log(
