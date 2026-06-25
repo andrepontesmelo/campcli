@@ -71,7 +71,7 @@ def check_map_from_data(
     for site_id, slots in resources.items():
         window_slots = [
             s for s in slots
-            if start <= date.fromisoformat(s["date"]) < end
+            if (d := s.get("date")) and start <= date.fromisoformat(d) < end
         ]
         if not _is_available(window_slots):
             continue
