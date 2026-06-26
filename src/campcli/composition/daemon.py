@@ -17,6 +17,7 @@ from ..application.daemon_log import WARNING
 from ..application.poller import Poller
 from ..application.search_notifier import SearchNotifier
 from ..application.throttle import read_request_interval
+from ..presentation.format import render_match_message
 
 
 def run_forever(
@@ -39,6 +40,7 @@ def run_forever(
             telegram=telegram,
             drive_times=drive_times,
             log=lambda *a: None,  # overridden by poller after construction
+            render_match_message=render_match_message,
             not_interested_repo=store,
             rest_days=profile.rest_days_between_bookings,
         )

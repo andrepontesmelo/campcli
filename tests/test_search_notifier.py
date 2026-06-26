@@ -21,11 +21,16 @@ def _empty_repo():
     return repo
 
 
+def _dummy_render(*a, **kw):
+    return ""
+
+
 def make_notifier(not_interested_repo=None):
     return SearchNotifier(
         telegram=FakeTelegram(),
         drive_times=DriveTimes.empty(),
         log=lambda msg: None,
+        render_match_message=_dummy_render,
         not_interested_repo=not_interested_repo or _empty_repo(),
     )
 

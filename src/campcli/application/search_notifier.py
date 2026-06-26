@@ -12,7 +12,6 @@ from .daemon_log import WARNING
 
 from ..domain.models import WeekendMatch
 from ..domain.ports import NotInterestedRepo, Telegram
-from ..presentation.format import render_match_message
 from .drive_times import DriveTimes
 from .notification_policy import NotificationPolicy
 
@@ -23,12 +22,14 @@ class SearchNotifier:
         telegram: Telegram,
         drive_times: DriveTimes,
         log: Callable[..., None],
+        render_match_message: Callable[..., str],
         not_interested_repo: NotInterestedRepo,
         rest_days: int = 14,
     ) -> None:
         self._telegram = telegram
         self._drive_times = drive_times
         self._log = log
+        self._render_match_message = render_match_message
         self._not_interested_repo = not_interested_repo
         self._policy = NotificationPolicy(rest_days=rest_days)
         self._skip_set: set[tuple[int, date, date]] | None = None
@@ -54,7 +55,7 @@ class SearchNotifier:
         decision = self._policy.decide(match)
         if decision is None:
             return
-        text = render_match_message(
+        text = self._render_match_message(
             decision.match,
             prev_gap_days=decision.prev_gap_days,
             next_gap_days=decision.next_gap_days,

@@ -938,6 +938,7 @@ class TestNotInterestedCli:
             telegram=_FakeTelegram(),
             drive_times=DriveTimes.empty(),
             log=lambda msg: None,
+            render_match_message=lambda *a, **kw: "",
             not_interested_repo=store,
         )
         notifier.start_poll([], set(), profile_id=profile.id)
