@@ -11,7 +11,7 @@ from collections.abc import Callable
 from datetime import date, timedelta
 
 from . import command_router
-from .catalog import resolve_map, resolve_park
+from .catalog import is_bookable_map, resolve_map, resolve_park
 from .daemon_log import DaemonLog, INFO, WARNING
 from .drive_times import DriveTimes
 from .telegram_users import build_verbose_chat_set
@@ -140,7 +140,7 @@ class Poller:
                         )
                         continue
                     for m in maps:
-                        if "walk-in" in m.name.lower() or "walk in" in m.name.lower():
+                        if not is_bookable_map(m):
                             continue
                         map_cache[(park.park_id, m.map_id)] = m
                         key = (park.park_id, m.map_id)

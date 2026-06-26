@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from . import catalog
 from .availability import check_map
 from ..domain.booking_window import max_bookable_start
-from .catalog import resolve_profile_parks
+from .catalog import is_bookable_map, resolve_profile_parks
 from .drive_times import DriveTimes
 from ..domain.models import Park, PatternSpec, Profile, WeekendMatch
 from ..domain.ports import BCParksApi
@@ -185,7 +185,7 @@ def run(
             continue
 
         for m in maps:
-            if "walk-in" in m.name.lower() or "walk in" in m.name.lower():
+            if not is_bookable_map(m):
                 continue
             # Apply map-level allowlist.
             if allowed_park_ids is not None and allowed_maps is not None:

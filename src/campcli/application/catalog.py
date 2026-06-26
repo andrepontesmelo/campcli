@@ -81,6 +81,17 @@ def resolve_profile_parks(
     return resolved
 
 
+def is_bookable_map(m: Map) -> bool:
+    """Return ``True`` if the Map is reservable (not a walk-in/first-come-first-served area).
+
+    Some BC Parks maps are first-come-first-served and marked as **walk-in**
+    or **walk in** in their name. These cannot be reserved and should be
+    filtered from availability searches.
+    """
+    lower = m.name.lower()
+    return "walk-in" not in lower and "walk in" not in lower
+
+
 def list_parks_filtered(
     api: BCParksApi, *, drive_times: DriveTimes,
     search: str | None = None, max_hours: float | None = None,
