@@ -3,15 +3,12 @@ from __future__ import annotations
 
 import os
 import re
-import webbrowser
 from contextlib import contextmanager
 from datetime import date
 
 import typer
 
-from ..application import catalog
 from . import daemon as daemon_svc
-from ..presentation import format as fmt
 from ..infrastructure.api import BCParksClient
 from ..application.not_interested import (
     not_interested_add as not_interested_add_uc,
@@ -55,7 +52,6 @@ from .cli_commands.book import app as book_app
 from .cli_commands.catalog import app as catalog_app
 from .cli_commands.config import app as config_app
 from .cli_commands.profile import profile_app
-from .cli_commands.profile import not_interested_app
 
 
 _DURATION_RE = re.compile(

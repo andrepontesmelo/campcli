@@ -14,18 +14,10 @@ from ..application.search import _search_for_profile
 from ..domain.models import DriveTimes, PatternSpec, Profile
 from ..domain.ports import BCParksApi, ProfileRepo
 from ..presentation import format as fmt
+from ._helpers import _confirm_profile_exists
 
 
 # ----- helpers ----------------------------------------------------------------
-
-
-def _confirm_profile_exists(profile_repo: ProfileRepo, name: str) -> Profile:
-    """Look up a profile by name. Exit with error if not found."""
-    profile = profile_repo.get_by_name(name)
-    if profile is None:
-        typer.echo(f"error: profile {name!r} not found", err=True)
-        raise typer.Exit(code=2)
-    return profile
 
 
 def _pattern_to_raw(p: PatternSpec) -> str:

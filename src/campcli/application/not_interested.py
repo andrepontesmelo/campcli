@@ -11,18 +11,10 @@ import typer
 
 from ..application.catalog import resolve_park
 from ..domain.ports import BCParksApi, NotInterestedRepo, ProfileRepo
+from ._helpers import _confirm_profile_exists
 
 
 # ----- helpers ----------------------------------------------------------------
-
-
-def _confirm_profile_exists(profile_repo: ProfileRepo, name: str):
-    """Look up a profile by name. Exit with error if not found."""
-    profile = profile_repo.get_by_name(name)
-    if profile is None:
-        typer.echo(f"error: profile {name!r} not found", err=True)
-        raise typer.Exit(code=2)
-    return profile
 
 
 # ----- not-interested add -----------------------------------------------------
