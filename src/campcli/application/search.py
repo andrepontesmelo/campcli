@@ -3,20 +3,26 @@
 Expands profile patterns into concrete (start_date, nights) windows across
 a horizon, fans out availability checks across drive-time-filtered parks,
 and aggregates results into per-(park, map, weekend) matches.
+Also holds extracted search use-case functions from the CLI layer
+(``_search_for_profile``, ``check``, ``book_open``, ``book_quote``).
 """
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from datetime import date, timedelta
 
+import typer
+
 from . import catalog
-from .availability import check_map
+from .availability import check_map, check_park
+from .booking_links import quote_url
 from ..domain.booking_window import max_bookable_start
-from .catalog import is_bookable_map, resolve_profile_parks
-from ..domain.models import DriveTimes
+from .catalog import find_park, is_bookable_map, resolve_profile_parks
+from ..domain.models import AvailableSite, DriveTimes
 from ..domain.models import Park, PatternSpec, Profile, WeekendMatch
 from ..domain.ports import BCParksApi
 from .pricing import fee_per_night
+from ..presentation import format as fmt
 
 _EXPLOSION_THRESHOLD = 10
 
@@ -218,3 +224,132 @@ def run(
                     fee_per_night=fee,
                 )
                 yield match
+
+
+# ---------------------------------------------------------------------------
+# Extracted CLI use-case functions (ADR-0005: grouped by Domain noun)
+# ---------------------------------------------------------------------------
+
+
+def _search_for_profile(
+    profile: Profile,
+    api: BCParksApi,
+    drive_times: DriveTimes,
+    *,
+    months: int | None = None,
+    max_drive_hours: float | None = None,
+    group_by: str = "weekend",
+    with_urls: bool = False,
+    limit_parks: int | None = None,
+) -> None:
+    """Run search for a profile and render results.
+
+    Overrides profile-level horizon/drive-hours when CLI flags are provided.
+    Raises typer.Exit(3) when no matches are found.
+    """
+    def progress(msg: str) -> None:
+        typer.echo(msg, err=True)
+
+    if months is not None:
+        profile.max_horizon_months = months
+    if max_drive_hours is not None:
+        profile.max_drive_hours = max_drive_hours
+
+    allowed_ids = (
+        resolve_profile_parks(api, profile.parks)
+        if profile.parks
+        else None
+    )
+    matches = list(run(
+        api, profile, drive_times=drive_times,
+        allowed_park_ids=allowed_ids,
+        limit_parks=limit_parks, progress=progress,
+    ))
+    typer.echo(fmt.render_search_results(
+        matches, group_by=group_by, with_urls=with_urls, drive_times=drive_times,
+    ))
+    if not matches:
+        raise typer.Exit(code=3)
+
+
+def check(
+    api: BCParksApi,
+    profile: Profile,
+    park_id: int,
+    start: date,
+    nights: int,
+    party_size: int = 1,
+    map_filter: int | None = None,
+) -> None:
+    """Check availability for a single park + date range.
+
+    *profile* is used for its name (displayed on stderr).
+    *start* is expected as a ``date`` (caller should parse from CLI).
+    Raises typer.Exit(2) if the park is not found or typer.Exit(3) when no
+    sites are available.
+    """
+    typer.echo(f"Profile: {profile.name}", err=True)
+    cutoff = max_bookable_start()
+    if start > cutoff:
+        typer.echo(
+            f"Warning: {start} is beyond 3-month booking window "
+            f"(bookable through {cutoff}).",
+            err=True,
+        )
+    parks = api.list_parks()
+    p = find_park(parks, park_id)
+    if p is None:
+        typer.echo(f"park {park_id} not found", err=True)
+        raise typer.Exit(code=2)
+    sites = check_park(api, p, start, nights, party_size, map_filter=map_filter)
+    typer.echo(fmt.render_available_list(sites))
+    if not sites:
+        raise typer.Exit(code=3)
+
+
+def book_open(
+    park_id: int,
+    map_id: int,
+    start: date,
+    nights: int,
+    party_size: int = 1,
+) -> str:
+    """Generate a booking deep-link URL (caller may open a browser)."""
+    cutoff = max_bookable_start()
+    if start > cutoff:
+        typer.echo(
+            f"Warning: {start} is beyond 3-month booking window "
+            f"(bookable through {cutoff}).",
+            err=True,
+        )
+    return quote_url(
+        park_id=park_id,
+        map_id=map_id,
+        start=start,
+        nights=nights,
+        party_size=party_size,
+    )
+
+
+def book_quote(
+    park_id: int,
+    map_id: int,
+    start: date,
+    nights: int,
+    party_size: int = 1,
+) -> str:
+    """Generate a booking quote URL (printed, not opened)."""
+    cutoff = max_bookable_start()
+    if start > cutoff:
+        typer.echo(
+            f"Warning: {start} is beyond 3-month booking window "
+            f"(bookable through {cutoff}).",
+            err=True,
+        )
+    return quote_url(
+        park_id=park_id,
+        map_id=map_id,
+        start=start,
+        nights=nights,
+        party_size=party_size,
+    )

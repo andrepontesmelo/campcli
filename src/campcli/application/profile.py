@@ -9,8 +9,8 @@ from datetime import date
 
 import typer
 
-from ..application import search
 from ..application.catalog import resolve_profile_parks
+from ..application.search import _search_for_profile
 from ..domain.models import DriveTimes, PatternSpec, Profile
 from ..domain.ports import BCParksApi, ProfileRepo
 from ..presentation import format as fmt
@@ -317,43 +317,6 @@ def profile_edit(profile_repo: ProfileRepo, name: str) -> None:
 # ----- search ----------------------------------------------------------------
 
 
-def _run_profile_search(
-    profile: Profile,
-    api: BCParksApi,
-    drive_times: DriveTimes,
-    *,
-    months: int | None = None,
-    max_drive_hours: float | None = None,
-    group_by: str = "weekend",
-    with_urls: bool = False,
-    limit_parks: int | None = None,
-) -> None:
-    """Run search for a profile and render results."""
-    def progress(msg: str) -> None:
-        typer.echo(msg, err=True)
-
-    if months is not None:
-        profile.max_horizon_months = months
-    if max_drive_hours is not None:
-        profile.max_drive_hours = max_drive_hours
-
-    allowed_ids = (
-        resolve_profile_parks(api, profile.parks)
-        if profile.parks
-        else None
-    )
-    matches = list(search.run(
-        api, profile, drive_times=drive_times,
-        allowed_park_ids=allowed_ids,
-        limit_parks=limit_parks, progress=progress,
-    ))
-    typer.echo(fmt.render_search_results(
-        matches, group_by=group_by, with_urls=with_urls, drive_times=drive_times,
-    ))
-    if not matches:
-        raise typer.Exit(code=3)
-
-
 def profile_search(
     profile_repo: ProfileRepo,
     api: BCParksApi,
@@ -375,7 +338,7 @@ def profile_search(
         typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
         raise typer.Exit(code=1)
     typer.echo(f"Profile: {profile.name}", err=True)
-    _run_profile_search(
+    _search_for_profile(
         profile, api=api, drive_times=drive_times,
         months=months, max_drive_hours=max_drive_hours,
         group_by=group_by, with_urls=with_urls, limit_parks=limit_parks,

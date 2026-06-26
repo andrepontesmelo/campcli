@@ -13,8 +13,6 @@ from ..application import catalog
 from . import daemon as daemon_svc
 from ..presentation import format as fmt
 from ..infrastructure.api import BCParksClient
-from ..application.availability import check_park
-from ..application.booking_links import quote_url
 from ..application.not_interested import (
     not_interested_add as not_interested_add_uc,
     not_interested_rm as not_interested_rm_uc,
@@ -33,7 +31,12 @@ from ..application.profile import (
     profile_tg_rm as profile_tg_rm_uc,
     profile_tg_list as profile_tg_list_uc,
     profile_search as profile_search_uc,
-    _run_profile_search,
+)
+from ..application.search import (
+    _search_for_profile,
+    check as check_uc,
+    book_open as book_open_uc,
+    book_quote as book_quote_uc,
 )
 from ..infrastructure.clock import SystemClock
 from ..application.migrate_profile import migrate_profile_json_to_db
@@ -43,7 +46,6 @@ from ..application.throttle import (
 )
 from ..constants import DEFAULT_REQUEST_INTERVAL_SECS
 from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH, PROFILE_PATH
-from ..domain.booking_window import max_bookable_start
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
 from ..domain.ports import ApiError, RateLimited
@@ -216,21 +218,9 @@ def check(
 ) -> None:
     store = _store()
     profile = resolve_profile(store, profile_name)
-    typer.echo(f"Profile: {profile.name}", err=True)
     start_d = _parse_date_or_exit(start)
-    cutoff = max_bookable_start()
-    if start_d > cutoff:
-        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
     with api_call() as api:
-        parks = api.list_parks()
-        p = catalog.find_park(parks, park)
-        if p is None:
-            typer.echo(f"park {park} not found", err=True)
-            raise typer.Exit(code=2)
-        sites = check_park(api, p, start_d, nights, party_size, map_filter=map_id)
-    typer.echo(fmt.render_available_list(sites))
-    if not sites:
-        raise typer.Exit(code=3)
+        check_uc(api, profile, park, start_d, nights, party_size, map_filter=map_id)
 
 
 # ----- search ----------------------------------------------------------------
@@ -267,7 +257,7 @@ def search_cmd(
     max_drive_hours = _parse_hours_or_exit(distance)
     drive_times = load_drive_times()
     with api_call() as api:
-        _run_profile_search(
+        _search_for_profile(
             profile, api=api, drive_times=drive_times,
             months=months, max_drive_hours=max_drive_hours,
             group_by=group_by, with_urls=with_urls, limit_parks=limit_parks,
@@ -285,16 +275,7 @@ def book_open(
     party_size: int = typer.Option(1, "--party-size"),
 ) -> None:
     start_d = _parse_date_or_exit(start)
-    cutoff = max_bookable_start()
-    if start_d > cutoff:
-        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
-    url = quote_url(
-        park_id=park,
-        map_id=map_id,
-        start=start_d,
-        nights=nights,
-        party_size=party_size,
-    )
+    url = book_open_uc(park_id=park, map_id=map_id, start=start_d, nights=nights, party_size=party_size)
     typer.echo(url)
     if not webbrowser.open(url):
         typer.echo("(could not launch a browser — copy the URL above)", err=True)
@@ -310,18 +291,8 @@ def book_quote(
     party_size: int = typer.Option(1, "--party-size"),
 ) -> None:
     start_d = _parse_date_or_exit(start)
-    cutoff = max_bookable_start()
-    if start_d > cutoff:
-        typer.echo(f"Warning: {start_d} is beyond 3-month booking window (bookable through {cutoff}).", err=True)
-    typer.echo(
-        quote_url(
-            park_id=park,
-            map_id=map_id,
-            start=start_d,
-            nights=nights,
-            party_size=party_size,
-        )
-    )
+    url = book_quote_uc(park_id=park, map_id=map_id, start=start_d, nights=nights, party_size=party_size)
+    typer.echo(url)
 
 
 # ----- catalog ---------------------------------------------------------------
