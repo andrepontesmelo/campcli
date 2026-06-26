@@ -10,7 +10,7 @@ import time
 from collections.abc import Callable
 from datetime import date, timedelta
 
-from . import command_router
+from . import command_router, telegram_settings
 from .catalog import is_bookable_map, resolve_map, resolve_park
 from .daemon_log import DaemonLog, INFO, WARNING
 from ..domain.models import DriveTimes
@@ -63,11 +63,9 @@ class Poller:
 
     def _refresh_tg_allowed_ids(self) -> None:
         """Recompute the union of ``tg_allowed_ids`` across enabled profiles."""
-        profiles = self._profile_repo.list_enabled()
-        ids: set[int] = set()
-        for p in profiles:
-            ids.update(p.tg_allowed_ids)
-        self._tg_allowed_ids = sorted(ids)
+        self._tg_allowed_ids = telegram_settings.refresh_tg_allowed_ids(
+            self._profile_repo
+        )
 
     def set_poll_telegram(self, poll_telegram: Telegram) -> None:
         self._poll_telegram = poll_telegram
@@ -80,7 +78,7 @@ class Poller:
             self.log(f"setMyCommands failed: {e}", WARNING)
         # Notify all authorized users who have a known chat
         for tg_id in self._tg_allowed_ids:
-            chat = self._settings_repo.get_setting(f"chat:{tg_id}")
+            chat = telegram_settings.get_chat_id(self._settings_repo, tg_id)
             if chat:
                 try:
                     self._telegram.send_to(
@@ -265,7 +263,7 @@ class Poller:
                 chat_ids = [
                     cid
                     for cid in (
-                        self._settings_repo.get_setting(f"chat:{tid}")
+                        telegram_settings.get_chat_id(self._settings_repo, tid)
                         for tid in profile.tg_allowed_ids
                     )
                     if cid is not None
@@ -292,13 +290,10 @@ class Poller:
                 time.sleep(1)
 
     def _get_verbose(self, tg_id: int) -> bool:
-        val = self._settings_repo.get_setting(f"verbose:{tg_id}")
-        return val == "on"
+        return telegram_settings.get_verbose(self._settings_repo, tg_id)
 
     def set_verbose(self, tg_id: int, on: bool, chat_id: str | None = None) -> None:
-        self._settings_repo.set_setting(
-            f"verbose:{tg_id}", "on" if on else "off"
-        )
+        telegram_settings.set_verbose(self._settings_repo, tg_id, on)
         if chat_id:
             self._log.set_verbose(chat_id, on)
         self._refresh_verbose_chats()
@@ -310,7 +305,7 @@ class Poller:
         self._log.set_verbose_chats(chats)
 
     def _get_chat_id_for_user(self, tg_id: int) -> str | None:
-        return self._settings_repo.get_setting(f"chat:{tg_id}")
+        return telegram_settings.get_chat_id(self._settings_repo, tg_id)
 
     def log(self, msg: str, level: int = INFO) -> None:
         self._log.log(msg, level)
@@ -324,12 +319,12 @@ class Poller:
             and upd.chat_id
             and upd.from_id in self._tg_allowed_ids
         ):
-            old = self._settings_repo.get_setting(
-                f"chat:{upd.from_id}"
+            old = telegram_settings.get_chat_id(
+                self._settings_repo, upd.from_id
             )
             if old != upd.chat_id:
-                self._settings_repo.set_setting(
-                    f"chat:{upd.from_id}", upd.chat_id
+                telegram_settings.set_chat_id(
+                    self._settings_repo, upd.from_id, upd.chat_id
                 )
                 self._refresh_verbose_chats()
         result = command_router.dispatch(
