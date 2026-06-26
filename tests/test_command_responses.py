@@ -1,11 +1,12 @@
 """Tests for command_responses module.
 
 Unit tests for process_update, handle_commands_forever, and
-handle_one_command_batch using fake Telegram adapter and fake Poller.
+handle_one_command_batch using fake Telegram adapter and CommandContext.
 """
 from __future__ import annotations
 
 from campcli.application import telegram_settings
+from campcli.application.command_router import CommandContext
 from campcli.application.command_responses import (
     handle_one_command_batch,
     process_update,
@@ -28,39 +29,19 @@ class FakeSettingsRepo:
         self._data[key] = value
 
 
-class FakePoller:
-    """Minimal Poller duck-type supporting command_router.dispatch needs."""
+def _build_ctx(sr: FakeSettingsRepo) -> CommandContext:
+    """Build a minimal CommandContext for command-responses tests."""
+    return CommandContext(
+        api=None,
+        settings_repo=sr,
+        profile_repo=None,
+        not_interested_repo=None,
+        _refresh_verbose_chats=lambda: None,
+    )
 
-    def __init__(
-        self,
-        telegram: FakeTelegram,
-        settings_repo: FakeSettingsRepo,
-        *,
-        tg_allowed_ids: list[int] | None = None,
-    ) -> None:
-        self._telegram = telegram
-        self._settings_repo = settings_repo
-        self._tg_allowed_ids = tg_allowed_ids or []
-        # Command router dispatch accesses these for /not-interested
-        self._not_interested_repo = None
-        self._profile_repo = None
-        self._api = None
-        self.logged: list[str] = []
-        self.verbose_chats_refreshed = False
 
-    def _get_verbose(self, tg_id: int) -> bool:
-        return telegram_settings.get_verbose(self._settings_repo, tg_id)
-
-    def set_verbose(
-        self, tg_id: int, on: bool, chat_id: str | None = None
-    ) -> None:
-        telegram_settings.set_verbose(self._settings_repo, tg_id, on)
-
-    def log(self, msg: str, level: int = INFO) -> None:
-        self.logged.append(msg)
-
-    def _refresh_verbose_chats(self) -> None:
-        self.verbose_chats_refreshed = True
+def _noop_log(*_a, **_kw):
+    pass
 
 
 # =========================================================================
@@ -72,44 +53,44 @@ class TestProcessUpdate:
     """Direct unit tests for process_update()."""
 
     def test_unknown_command_returns_offset(self) -> None:
-        """Unknown text → dispatch returns None → no reply, correct offset."""
+        """Unknown text â†' dispatch returns None â†' no reply, correct offset."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=1, chat_id="100", text="garbage", from_id=1
         )
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 2  # update_id + 1
         assert tg.sent == []
 
     def test_verbose_on_sends_reply(self) -> None:
-        """/verbose on → reply type → text sent via telegram.send_to."""
+        """/verbose on â†' reply type â†' text sent via telegram.send_to."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=5, chat_id="100", text="/verbose on", from_id=1
         )
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 6
@@ -117,23 +98,23 @@ class TestProcessUpdate:
         assert sr.get_setting("verbose:1") == "on"
 
     def test_verbose_off_sends_reply(self) -> None:
-        """/verbose off → reply type → text sent."""
+        """/verbose off â†' reply type â†' text sent."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
         sr.set_setting("verbose:1", "on")
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=3, chat_id="100", text="/verbose off", from_id=1
         )
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 4
@@ -141,22 +122,22 @@ class TestProcessUpdate:
         assert sr.get_setting("verbose:1") == "off"
 
     def test_verbose_bare_sends_inline_keyboard(self) -> None:
-        """/verbose → inline_keyboard type → keyboard sent."""
+        """/verbose â†' inline_keyboard type â†' keyboard sent."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=10, chat_id="100", text="/verbose", from_id=1
         )
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 11
@@ -172,11 +153,11 @@ class TestProcessUpdate:
         ]
 
     def test_callback_verbose_on(self) -> None:
-        """Callback → answer_callback_query + edit_message_reply_markup."""
+        """Callback â†' answer_callback_query + edit_message_reply_markup."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
         sr.set_setting("verbose:1", "off")
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=7,
             chat_id="100",
@@ -189,12 +170,12 @@ class TestProcessUpdate:
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 8
@@ -207,11 +188,11 @@ class TestProcessUpdate:
         assert sr.get_setting("verbose:1") == "on"
 
     def test_callback_verbose_off(self) -> None:
-        """Callback → answer_callback_query + edit_message_reply_markup."""
+        """Callback â†' answer_callback_query + edit_message_reply_markup."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
         sr.set_setting("verbose:1", "on")
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=8,
             chat_id="100",
@@ -224,12 +205,12 @@ class TestProcessUpdate:
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 9
@@ -239,22 +220,22 @@ class TestProcessUpdate:
         assert sr.get_setting("verbose:1") == "off"
 
     def test_unauthorized_user_gets_id_message(self) -> None:
-        """Unauthorized → reply with 'Your Telegram ID is ...'."""
+        """Unauthorized â†' reply with 'Your Telegram ID is ...'."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=2, chat_id="100", text="/verbose", from_id=999
         )
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 3
@@ -262,33 +243,33 @@ class TestProcessUpdate:
         assert "Your Telegram ID is 999" in tg.sent[0]
 
     def test_chat_tracking_updates_chat_id(self) -> None:
-        """Authorized user from new chat → chat_id updated in settings."""
+        """Authorized user from new chat â†' chat_id updated in settings."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
         sr.set_setting("chat:1", "100")
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=4, chat_id="200", text="/verbose on", from_id=1
         )
 
         process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert sr.get_setting("chat:1") == "200"
 
     def test_callback_query_with_unknown_callback_data(self) -> None:
-        """Unknown callback data → dispatch returns reply → callback answered
+        """Unknown callback data â†' dispatch returns reply â†' callback answered
         + reply sent."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         upd = TelegramUpdate(
             update_id=9,
             chat_id="100",
@@ -301,12 +282,12 @@ class TestProcessUpdate:
 
         result = process_update(
             upd,
-            poller=poller,
+            ctx=ctx,
             telegram=tg,
             settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
         )
 
         assert result == 10
@@ -328,7 +309,7 @@ class TestHandleOneCommandBatch:
         """All canned updates are processed."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         tg.canned_updates = [
             TelegramUpdate(
                 update_id=1, chat_id="100", text="/verbose on", from_id=1
@@ -338,7 +319,14 @@ class TestHandleOneCommandBatch:
             ),
         ]
 
-        last_offset = handle_one_command_batch(poller)
+        last_offset = handle_one_command_batch(
+            ctx=ctx,
+            telegram=tg,
+            tg_allowed_ids=[1],
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
+            settings_repo=sr,
+        )
 
         assert last_offset == 3  # last update_id + 1
         assert len(tg.sent) == 2
@@ -347,21 +335,28 @@ class TestHandleOneCommandBatch:
         assert sr.get_setting("verbose:1") == "off"
 
     def test_empty_updates_returns_none(self) -> None:
-        """No canned updates → returns None."""
+        """No canned updates â†' returns None."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
 
-        result = handle_one_command_batch(poller)
+        result = handle_one_command_batch(
+            ctx=ctx,
+            telegram=tg,
+            tg_allowed_ids=[1],
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
+            settings_repo=sr,
+        )
 
         assert result is None
 
-    def test_explicit_kwargs_override_poller(self) -> None:
-        """Explicit telegram/settings_repo override Poller attributes."""
+    def test_explicit_kwargs_override(self) -> None:
+        """Explicit telegram/settings_repo used correctly."""
         tg1 = FakeTelegram()
         tg2 = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg1, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         # Set canned on tg2, not tg1
         tg2.canned_updates = [
             TelegramUpdate(
@@ -370,13 +365,12 @@ class TestHandleOneCommandBatch:
         ]
 
         last_offset = handle_one_command_batch(
-            poller,
+            ctx=ctx,
             telegram=tg2,
-            settings_repo=sr,
             tg_allowed_ids=[1],
-            log=poller.log,
-            refresh_verbose_chats=poller._refresh_verbose_chats,
-            update_offset=None,
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
+            settings_repo=sr,
         )
 
         assert last_offset == 6
@@ -387,7 +381,7 @@ class TestHandleOneCommandBatch:
         """Batch with unauthorized user still processes."""
         tg = FakeTelegram()
         sr = FakeSettingsRepo()
-        poller = FakePoller(tg, sr, tg_allowed_ids=[1])
+        ctx = _build_ctx(sr)
         tg.canned_updates = [
             TelegramUpdate(
                 update_id=1, chat_id="100", text="/verbose", from_id=999
@@ -397,7 +391,14 @@ class TestHandleOneCommandBatch:
             ),
         ]
 
-        handle_one_command_batch(poller)
+        handle_one_command_batch(
+            ctx=ctx,
+            telegram=tg,
+            tg_allowed_ids=[1],
+            log=_noop_log,
+            refresh_verbose_chats=_noop_log,
+            settings_repo=sr,
+        )
 
         # First: unauthorized reply
         assert "Your Telegram ID is 999" in tg.sent[0]

@@ -140,14 +140,13 @@ def notifier_factory():
 
 
 @pytest.fixture
-def poller(store, clock, fake_api, fake_telegram, notifier_factory, profile_repo):
-    from campcli.domain.models import DriveTimes
-    from campcli.application.poller import Poller
-    return Poller(
-        api=fake_api, telegram=fake_telegram,
-        notifier_factory=notifier_factory,
-        settings_repo=store, clock=clock,
-        drive_times=DriveTimes.empty(),
-        profile_repo=profile_repo,
+def command_context(fake_api, store):
+    """Build a CommandContext with in-memory fakes for testing."""
+    from campcli.application.command_router import CommandContext
+    return CommandContext(
+        api=fake_api,
+        settings_repo=store,
+        profile_repo=store,
         not_interested_repo=store,
+        _refresh_verbose_chats=lambda: None,
     )

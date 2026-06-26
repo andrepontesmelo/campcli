@@ -4,6 +4,8 @@ Add a new command: write a handler function, add it to COMMANDS dict.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ..domain.ports import BotCommand, TelegramUpdate
@@ -11,7 +13,7 @@ from .catalog import find_park
 from .telegram_users import is_authorized, unauthorized_reply
 
 if TYPE_CHECKING:
-    from .poller import Poller
+    from ..domain.ports import BCParksApi, NotInterestedRepo, ProfileRepo, SettingsRepo
 
 
 # Result from dispatch: action dict with type discriminator.
@@ -22,17 +24,44 @@ if TYPE_CHECKING:
 DispatchResult = dict[str, Any] | None
 
 
-def _cmd_not_interested(update: TelegramUpdate, poller: Poller) -> DispatchResult:
+@dataclass
+class CommandContext:
+    """Holds dependencies needed by command_router dispatch handlers.
+
+    Replaces the dissolved ``Poller`` class — a lightweight data holder
+    that the composition root assembles and the command router consumes.
+    """
+
+    api: "BCParksApi"
+    settings_repo: "SettingsRepo"
+    profile_repo: "ProfileRepo"
+    not_interested_repo: "NotInterestedRepo | None" = None
+    # Callback to rebuild the verbose-chat set after a verbose toggle.
+    _refresh_verbose_chats: Callable[[], None] = lambda: None
+
+    def get_verbose(self, tg_id: int) -> bool:
+        from . import telegram_settings
+
+        return telegram_settings.get_verbose(self.settings_repo, tg_id)
+
+    def set_verbose(self, tg_id: int, on: bool) -> None:
+        from . import telegram_settings
+
+        telegram_settings.set_verbose(self.settings_repo, tg_id, on)
+        self._refresh_verbose_chats()
+
+
+def _cmd_not_interested(update: TelegramUpdate, ctx: CommandContext) -> DispatchResult:
     if update.reply_to_message_id is None:
         return {"type": "reply", "text": "Reply this command to a notification message."}
-    ni_repo = poller._not_interested_repo
+    ni_repo = ctx.not_interested_repo
     if ni_repo is None:
         return {"type": "reply", "text": "NotInterested is not configured."}
     entry = ni_repo.lookup_sent(update.reply_to_message_id)
     if entry is None:
         return {"type": "reply", "text": "Could not find the notification for this message (may have been purged)."}
     profile_id, park_id, date_start, date_end = entry
-    profile = poller._profile_repo.get_by_id(profile_id)
+    profile = ctx.profile_repo.get_by_id(profile_id)
     if profile is None:
         return {"type": "reply", "text": "Could not find your profile."}
     if update.from_id not in profile.tg_allowed_ids:
@@ -44,7 +73,7 @@ def _cmd_not_interested(update: TelegramUpdate, poller: Poller) -> DispatchResul
         )
     except ValueError:
         return {"type": "reply", "text": "Already marked not interested."}
-    parks = poller._api.list_parks()
+    parks = ctx.api.list_parks()
     park = find_park(parks, park_id)
     park_name = park.name if park else f"park #{park_id}"
     return {
@@ -53,9 +82,9 @@ def _cmd_not_interested(update: TelegramUpdate, poller: Poller) -> DispatchResul
     }
 
 
-def _cmd_verbose_bare(tg_id: int, poller: Poller) -> DispatchResult:
+def _cmd_verbose_bare(tg_id: int, ctx: CommandContext) -> DispatchResult:
     """Show current verbose state with inline keyboard."""
-    current = poller._get_verbose(tg_id)
+    current = ctx.get_verbose(tg_id)
     state = "ON" if current else "OFF"
     buttons = [
         [
@@ -70,13 +99,13 @@ def _cmd_verbose_bare(tg_id: int, poller: Poller) -> DispatchResult:
     }
 
 
-def _cmd_verbose_on(tg_id: int, poller: Poller) -> DispatchResult:
-    poller.set_verbose(tg_id, True)
+def _cmd_verbose_on(tg_id: int, ctx: CommandContext) -> DispatchResult:
+    ctx.set_verbose(tg_id, True)
     return {"type": "reply", "text": "verbose logging ON"}
 
 
-def _cmd_verbose_off(tg_id: int, poller: Poller) -> DispatchResult:
-    poller.set_verbose(tg_id, False)
+def _cmd_verbose_off(tg_id: int, ctx: CommandContext) -> DispatchResult:
+    ctx.set_verbose(tg_id, False)
     return {"type": "reply", "text": "verbose logging OFF"}
 
 
@@ -99,7 +128,7 @@ CB_HANDLERS: dict[str, str] = {
 
 
 def dispatch(
-    update: TelegramUpdate, poller: Poller, tg_allowed_ids: list[int]
+    update: TelegramUpdate, ctx: CommandContext, tg_allowed_ids: list[int]
 ) -> DispatchResult:
     """Route a TelegramUpdate to the right handler.
 
@@ -114,9 +143,9 @@ def dispatch(
         action = CB_HANDLERS.get(update.callback_data)
         if action and from_id is not None:
             if action == "verbose_on":
-                poller.set_verbose(from_id, True)
+                ctx.set_verbose(from_id, True)
             elif action == "verbose_off":
-                poller.set_verbose(from_id, False)
+                ctx.set_verbose(from_id, False)
             return {
                 "type": "callback",
                 "callback_query_id": update.callback_query_id,
@@ -132,11 +161,11 @@ def dispatch(
     if from_id is None:
         return {"type": "reply", "text": "could not identify user"}
     if cmd_name == "verbose_bare":
-        return _cmd_verbose_bare(from_id, poller)
+        return _cmd_verbose_bare(from_id, ctx)
     if cmd_name == "verbose_on":
-        return _cmd_verbose_on(from_id, poller)
+        return _cmd_verbose_on(from_id, ctx)
     if cmd_name == "verbose_off":
-        return _cmd_verbose_off(from_id, poller)
+        return _cmd_verbose_off(from_id, ctx)
     if cmd_name == "not_interested":
-        return _cmd_not_interested(update, poller)
+        return _cmd_not_interested(update, ctx)
     return None

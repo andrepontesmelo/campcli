@@ -17,7 +17,7 @@ from .daemon_log import INFO, WARNING
 def process_update(
     upd,
     *,
-    poller,
+    ctx,
     telegram,
     settings_repo,
     tg_allowed_ids: list[int],
@@ -44,7 +44,7 @@ def process_update(
             )
             refresh_verbose_chats()
 
-    result = command_router.dispatch(upd, poller, tg_allowed_ids)
+    result = command_router.dispatch(upd, ctx, tg_allowed_ids)
 
     if result is None:
         # Still answer the callback query if applicable
@@ -98,19 +98,20 @@ def process_update(
 def handle_commands_forever(
     stop: threading.Event,
     *,
-    poller,
+    ctx,
     telegram,
     settings_repo,
     log: Callable[..., None],
     refresh_verbose_chats: Callable[[], None],
     poll_telegram=None,
     long_poll_timeout: int = 25,
+    tg_allowed_ids: list[int] | None = None,
 ) -> None:
     """Poll for and process Telegram commands until *stop* is set.
 
     Args:
         stop: Event that signals shutdown.
-        poller: Poller instance (needed by command_router.dispatch).
+        ctx: CommandContext for command routing.
         telegram: Telegram adapter for sending responses.
         settings_repo: For chat tracking.
         log: Logging callable (msg, level=INFO).
@@ -119,8 +120,11 @@ def handle_commands_forever(
         poll_telegram: Separate Telegram adapter for polling
             (if different from sending).
         long_poll_timeout: Seconds for long-polling.
+        tg_allowed_ids: Authorized user IDs list (mutated in-place
+            by the daemon's poll loop).
     """
     poll = poll_telegram or telegram
+    ids = tg_allowed_ids or []
     update_offset: int | None = None
     while not stop.is_set():
         try:
@@ -131,10 +135,10 @@ def handle_commands_forever(
             for upd in updates:
                 update_offset = process_update(
                     upd,
-                    poller=poller,
+                    ctx=ctx,
                     telegram=telegram,
                     settings_repo=settings_repo,
-                    tg_allowed_ids=poller._tg_allowed_ids,
+                    tg_allowed_ids=ids,
                     log=log,
                     refresh_verbose_chats=refresh_verbose_chats,
                 )
@@ -144,43 +148,39 @@ def handle_commands_forever(
 
 
 def handle_one_command_batch(
-    poller,
     *,
-    telegram=None,
-    settings_repo=None,
-    tg_allowed_ids=None,
-    log=None,
-    refresh_verbose_chats=None,
+    ctx,
+    telegram,
+    tg_allowed_ids,
+    log,
+    refresh_verbose_chats,
+    settings_repo,
     update_offset=None,
 ) -> int | None:
     """Process one batch of Telegram updates.
 
-    Keeps the Poller-based signature for backward compatibility
-    (used by tests). Explicit keyword args override Poller attributes.
+    Args:
+        ctx: CommandContext for command routing.
+        telegram: Telegram adapter for polling/sending.
+        tg_allowed_ids: Authorized user IDs.
+        log: Logging callable (msg, level=INFO).
+        refresh_verbose_chats: Callback to rebuild verbose chat set.
+        settings_repo: For chat tracking.
+        update_offset: Starting offset for polling.
 
     Returns the last update_offset processed, or None if no updates.
     """
-    t = telegram or poller._telegram
-    sr = settings_repo or poller._settings_repo
-    ids = tg_allowed_ids or poller._tg_allowed_ids
-    lf = log or poller.log
-    rvc = refresh_verbose_chats or poller._refresh_verbose_chats
-
-    current_offset = (
-        update_offset
-        if update_offset is not None
-        else getattr(poller, "_update_offset", None)
-    )
-    updates = t.poll_updates(offset=current_offset)
+    current_offset = update_offset
+    updates = telegram.poll_updates(offset=current_offset)
     last_offset = current_offset
     for upd in updates:
         last_offset = process_update(
             upd,
-            poller=poller,
-            telegram=t,
-            settings_repo=sr,
-            tg_allowed_ids=ids,
-            log=lf,
-            refresh_verbose_chats=rvc,
+            ctx=ctx,
+            telegram=telegram,
+            settings_repo=settings_repo,
+            tg_allowed_ids=tg_allowed_ids,
+            log=log,
+            refresh_verbose_chats=refresh_verbose_chats,
         )
     return last_offset
