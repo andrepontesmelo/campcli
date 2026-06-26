@@ -15,6 +15,11 @@ from ..presentation import format as fmt
 from ..infrastructure.api import BCParksClient
 from ..application.availability import check_park
 from ..application.booking_links import quote_url
+from ..application.not_interested import (
+    not_interested_add as not_interested_add_uc,
+    not_interested_rm as not_interested_rm_uc,
+    not_interested_list as not_interested_list_uc,
+)
 from ..application.profile import (
     resolve_profile,
     profile_create as profile_create_uc,
@@ -507,30 +512,10 @@ def not_interested_add(
 ) -> None:
     """Mark a park+dates as not interested for a profile."""
     store = _store()
-    profile = store.get_by_name(profile_name)
-    if profile is None:
-        typer.echo(f"error: profile {profile_name!r} not found", err=True)
-        raise typer.Exit(code=2)
     start = _parse_date_or_exit(date_start)
     end = _parse_date_or_exit(date_end)
-    if start > end:
-        typer.echo("error: date_start must not be after date_end", err=True)
-        raise typer.Exit(code=2)
     with api_call() as api:
-        try:
-            park = catalog.resolve_park(api, park_name)
-        except ValueError as e:
-            typer.echo(f"error: {e}", err=True)
-            raise typer.Exit(code=2)
-    try:
-        store.add(profile.id, park.park_id, start, end)
-    except ValueError:
-        typer.echo("Already marked not interested.", err=True)
-        raise typer.Exit(code=2)
-    typer.echo(
-        f"Marked {park.name} as not interested ({start} – {end}) "
-        f"for profile {profile_name!r}"
-    )
+        not_interested_add_uc(store, store, api, profile_name, park_name, start, end)
 
 
 @not_interested_app.command("rm")
@@ -542,33 +527,10 @@ def not_interested_rm(
 ) -> None:
     """Remove a not-interested entry."""
     store = _store()
-    profile = store.get_by_name(profile_name)
-    if profile is None:
-        typer.echo(f"error: profile {profile_name!r} not found", err=True)
-        raise typer.Exit(code=2)
     start = _parse_date_or_exit(date_start)
     end = _parse_date_or_exit(date_end)
-    if start > end:
-        typer.echo("error: date_start must not be after date_end", err=True)
-        raise typer.Exit(code=2)
     with api_call() as api:
-        try:
-            park = catalog.resolve_park(api, park_name)
-        except ValueError as e:
-            typer.echo(f"error: {e}", err=True)
-            raise typer.Exit(code=2)
-    existing = store.list_for(profile.id)
-    if not any(
-        e.park_id == park.park_id and e.date_start == start and e.date_end == end
-        for e in existing
-    ):
-        typer.echo("No matching not-interested entry", err=True)
-        raise typer.Exit(code=2)
-    store.remove(profile.id, park.park_id, start, end)
-    typer.echo(
-        f"Removed not-interested: {park.name} ({start} – {end}) "
-        f"for profile {profile_name!r}"
-    )
+        not_interested_rm_uc(store, store, api, profile_name, park_name, start, end)
 
 
 @not_interested_app.command("list")
@@ -577,24 +539,8 @@ def not_interested_list(
 ) -> None:
     """List not-interested entries for a profile."""
     store = _store()
-    profile = store.get_by_name(profile_name)
-    if profile is None:
-        typer.echo(f"error: profile {profile_name!r} not found", err=True)
-        raise typer.Exit(code=2)
-    entries = store.list_for(profile.id)
-    if not entries:
-        typer.echo(f"No not-interested entries for profile {profile_name!r}")
-        return
     with api_call() as api:
-        parks = {p.park_id: p.name for p in api.list_parks()}
-    header = f"{'Park':<30} {'Start':<12} {'End':<12}"
-    typer.echo(header)
-    typer.echo("-" * len(header))
-    for e in entries:
-        park_name = parks.get(e.park_id, str(e.park_id))
-        typer.echo(
-            f"{park_name:<30} {e.date_start.isoformat():<12} {e.date_end.isoformat():<12}"
-        )
+        not_interested_list_uc(store, store, api, profile_name)
 
 
 # ----- daemon ----------------------------------------------------------------
