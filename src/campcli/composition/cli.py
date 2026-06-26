@@ -12,12 +12,24 @@ import typer
 from ..application import catalog
 from . import daemon as daemon_svc
 from ..presentation import format as fmt
-from ..application import search
-from ..domain.models import ParkQuery, PatternSpec, Profile
 from ..infrastructure.api import BCParksClient
 from ..application.availability import check_park
 from ..application.booking_links import quote_url
-from ..application.catalog import resolve_profile_parks
+from ..application.profile import (
+    resolve_profile,
+    profile_create as profile_create_uc,
+    profile_list as profile_list_uc,
+    profile_show as profile_show_uc,
+    profile_edit as profile_edit_uc,
+    profile_delete as profile_delete_uc,
+    profile_enable as profile_enable_uc,
+    profile_disable as profile_disable_uc,
+    profile_tg_add as profile_tg_add_uc,
+    profile_tg_rm as profile_tg_rm_uc,
+    profile_tg_list as profile_tg_list_uc,
+    profile_search as profile_search_uc,
+    _run_profile_search,
+)
 from ..infrastructure.clock import SystemClock
 from ..application.migrate_profile import migrate_profile_json_to_db
 from ..application.throttle import (
@@ -29,7 +41,7 @@ from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES
 from ..domain.booking_window import max_bookable_start
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache
 from ..infrastructure.drive_times_cache import load_cache as load_drive_times
-from ..domain.ports import ApiError, ProfileRepo, RateLimited
+from ..domain.ports import ApiError, RateLimited
 from ..infrastructure.store import SqliteStore
 
 
@@ -134,95 +146,6 @@ def _run_profile_migration() -> None:
     store = _store()
     migrate_profile_json_to_db(PROFILE_PATH, store)
 
-
-def _confirm_profile_exists(store: SqliteStore, name: str) -> Profile:
-    profile = store.get_by_name(name)
-    if profile is None:
-        typer.echo(f"error: profile {name!r} not found", err=True)
-        raise typer.Exit(code=2)
-    return profile
-
-
-def resolve_profile(
-    profile_repo: ProfileRepo,
-    requested: str | None,
-) -> Profile:
-    """Resolve the active profile for a CLI invocation.
-
-    - requested is given (via --profile): use it if it exists and is enabled; error otherwise.
-    - requested is None: count enabled profiles.
-      - 0: error 'no enabled profiles found; create one with ``campcli profile create <name>``'
-      - 1: auto-select that profile.
-      - 2+: error 'multiple enabled profiles; specify --profile <name>'.
-
-    Returns the resolved Profile.
-    Raises typer.Exit on error.
-    """
-    if requested is not None:
-        profile = profile_repo.get_by_name(requested)
-        if profile is None:
-            typer.echo(f"error: profile {requested!r} not found", err=True)
-            raise typer.Exit(code=2)
-        if not profile.enabled:
-            typer.echo(f"error: profile {requested!r} is disabled", err=True)
-            raise typer.Exit(code=2)
-        return profile
-
-    enabled = profile_repo.list_enabled()
-    if len(enabled) == 0:
-        typer.echo(
-            "error: no enabled profiles found; "
-            "create one with `campcli profile create <name>`",
-            err=True,
-        )
-        raise typer.Exit(code=2)
-    if len(enabled) > 1:
-        typer.echo(
-            "error: multiple enabled profiles found; specify --profile <name>",
-            err=True,
-        )
-        raise typer.Exit(code=2)
-    # Exactly one enabled profile.
-    return enabled[0]
-
-
-def _search_for_profile(
-    profile: Profile,
-    *,
-    months: int | None = None,
-    distance: str | None = None,
-    group_by: str = "weekend",
-    with_urls: bool = False,
-    limit_parks: int | None = None,
-) -> None:
-    """Run search for a profile and render results."""
-    drive_times = load_drive_times()
-
-    def progress(msg: str) -> None:
-        typer.echo(msg, err=True)
-
-    with api_call() as api:
-        if months is not None:
-            profile.max_horizon_months = months
-        parsed_distance = _parse_hours_or_exit(distance)
-        if parsed_distance is not None:
-            profile.max_drive_hours = parsed_distance
-
-        allowed_ids = (
-            resolve_profile_parks(api, profile.parks)
-            if profile.parks
-            else None
-        )
-        matches = list(search.run(
-            api, profile, drive_times=drive_times,
-            allowed_park_ids=allowed_ids,
-            limit_parks=limit_parks, progress=progress,
-        ))
-    typer.echo(fmt.render_search_results(
-        matches, group_by=group_by, with_urls=with_urls, drive_times=drive_times,
-    ))
-    if not matches:
-        raise typer.Exit(code=3)
 
 
 # ----- parks -----------------------------------------------------------------
@@ -336,14 +259,14 @@ def search_cmd(
     store = _store()
     profile = resolve_profile(store, profile_name)
     typer.echo(f"Profile: {profile.name}", err=True)
-    _search_for_profile(
-        profile,
-        months=months,
-        distance=distance,
-        group_by=group_by,
-        with_urls=with_urls,
-        limit_parks=limit_parks,
-    )
+    max_drive_hours = _parse_hours_or_exit(distance)
+    drive_times = load_drive_times()
+    with api_call() as api:
+        _run_profile_search(
+            profile, api=api, drive_times=drive_times,
+            months=months, max_drive_hours=max_drive_hours,
+            group_by=group_by, with_urls=with_urls, limit_parks=limit_parks,
+        )
 
 
 # ----- book ------------------------------------------------------------------
@@ -457,88 +380,13 @@ def profile_create(
     name: str = typer.Argument(..., help="Unique profile name."),
 ) -> None:
     """Create a new search profile with interactive prompts."""
-    store = _store()
-    if store.get_by_name(name) is not None:
-        typer.echo(f"error: profile {name!r} already exists", err=True)
-        raise typer.Exit(code=2)
-
-    max_horizon_months = typer.prompt("Max horizon (months)", default=3, type=int)
-    max_drive_hours = typer.prompt("Max drive (hours)", default=3.0, type=float)
-    raw_date = typer.prompt("Min start date (YYYY-MM-DD, optional)", default="")
-    min_start_date: str | None = raw_date.strip() or None
-    if min_start_date is not None:
-        try:
-            date.fromisoformat(min_start_date)
-        except ValueError:
-            typer.echo(f"error: invalid date {min_start_date!r}", err=True)
-            raise typer.Exit(code=2)
-    rest_days = typer.prompt("Rest days between bookings", default=14, type=int)
-
-    profile = Profile(
-        name=name,
-        max_horizon_months=max_horizon_months,
-        max_drive_hours=max_drive_hours,
-        min_start_date=min_start_date,
-        rest_days_between_bookings=rest_days,
-    )
-    created = store.create(profile)
-    typer.echo(f"profile {name!r} created (id={created.id})")
-
-    # Interactive prompts for child rows.
-    from ..domain.models import parse_pattern
-    typer.echo("")
-    typer.echo("Add patterns (one per line, blank to finish):")
-    while True:
-        raw = typer.prompt("Pattern", default="", show_default=False)
-        if not raw:
-            break
-        try:
-            parse_pattern(raw)  # validate before inserting
-        except ValueError as e:
-            typer.echo(f"  (skipped: {e})", err=True)
-            continue
-        sort = len(store.list_patterns(name))
-        store.add_pattern(name, raw, sort_order=sort)
-
-    typer.echo("")
-    typer.echo("Add park filters (one per line, blank to finish):")
-    while True:
-        park = typer.prompt("Park name", default="", show_default=False)
-        if not park:
-            break
-        map_q = typer.prompt("Map name (optional)", default="", show_default=False)
-        store.add_park(name, park, map_q.strip() or None)
-
-    typer.echo("")
-    typer.echo("Add Telegram user IDs (one per line, blank to finish):")
-    while True:
-        raw = typer.prompt("Telegram ID", default="", show_default=False)
-        if not raw:
-            break
-        try:
-            store.add_tg_id(name, int(raw))
-        except ValueError:
-            typer.echo(f"  (skipped: {raw!r} is not a number)", err=True)
+    profile_create_uc(_store(), name)
 
 
 @profile_app.command("list")
 def profile_list() -> None:
     """List all profiles with key fields."""
-    store = _store()
-    profiles = store.list_all()
-    if not profiles:
-        typer.echo("no profiles")
-        return
-    header = f"{'Name':<24} {'Enabled':<9} {'Horizon':<9} {'Drive':<9} {'Rest':<6} {'Created'}"
-    typer.echo(header)
-    typer.echo("-" * len(header))
-    for p in profiles:
-        enabled = "yes" if p.enabled else "no"
-        created = p.created_at[:10] if p.created_at else "-"
-        typer.echo(
-            f"{p.name:<24} {enabled:<9} {p.max_horizon_months:<9} "
-            f"{p.max_drive_hours:<9} {p.rest_days_between_bookings:<6} {created}"
-        )
+    profile_list_uc(_store())
 
 
 @profile_app.command("show")
@@ -546,19 +394,7 @@ def profile_show(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Show full profile details."""
-    store = _store()
-    profile = _confirm_profile_exists(store, name)
-    typer.echo(f"name:                         {profile.name}")
-    typer.echo(f"enabled:                      {'yes' if profile.enabled else 'no'}")
-    typer.echo(f"max_horizon_months:           {profile.max_horizon_months}")
-    typer.echo(f"max_drive_hours:              {profile.max_drive_hours}")
-    typer.echo(f"min_start_date:               {profile.min_start_date or '-'}")
-    typer.echo(f"rest_days_between_bookings:   {profile.rest_days_between_bookings}")
-    typer.echo(f"patterns:                     {[_pattern_to_raw(p) for p in profile.patterns] or '-'}")
-    typer.echo(f"parks:                        {[(pq.park_query, pq.map_query) for pq in profile.parks] or '-'}")
-    typer.echo(f"tg_allowed_ids:               {profile.tg_allowed_ids or '-'}")
-    typer.echo(f"created_at:                   {profile.created_at or '-'}")
-    typer.echo(f"updated_at:                   {profile.updated_at or '-'}")
+    profile_show_uc(_store(), name)
 
 
 @profile_app.command("search")
@@ -580,23 +416,14 @@ def profile_search(
     limit_parks: int | None = typer.Option(None, "--limit-parks", hidden=True),
 ) -> None:
     """Search campsites for a named profile (explicit form)."""
-    store = _store()
-    profile = _confirm_profile_exists(store, name)
-    if not profile.enabled:
-        typer.echo(f"error: profile {name!r} is disabled", err=True)
-        raise typer.Exit(code=2)
-    if group_by not in ("weekend", "park"):
-        typer.echo("error: --group-by must be 'weekend' or 'park'", err=True)
-        raise typer.Exit(code=1)
-    typer.echo(f"Profile: {profile.name}", err=True)
-    _search_for_profile(
-        profile,
-        months=months,
-        distance=distance,
-        group_by=group_by,
-        with_urls=with_urls,
-        limit_parks=limit_parks,
-    )
+    max_drive_hours = _parse_hours_or_exit(distance)
+    drive_times = load_drive_times()
+    with api_call() as api:
+        profile_search_uc(
+            _store(), api, drive_times, name,
+            months=months, max_drive_hours=max_drive_hours,
+            group_by=group_by, with_urls=with_urls, limit_parks=limit_parks,
+        )
 
 
 @profile_app.command("enable")
@@ -604,10 +431,7 @@ def profile_enable(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Enable a profile."""
-    store = _store()
-    _confirm_profile_exists(store, name)
-    store.set_enabled(name, True)
-    typer.echo(f"profile {name!r} enabled")
+    profile_enable_uc(_store(), name)
 
 
 @profile_app.command("disable")
@@ -615,10 +439,7 @@ def profile_disable(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Disable a profile."""
-    store = _store()
-    _confirm_profile_exists(store, name)
-    store.set_enabled(name, False)
-    typer.echo(f"profile {name!r} disabled")
+    profile_disable_uc(_store(), name)
 
 
 @profile_app.command("delete")
@@ -626,10 +447,7 @@ def profile_delete(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Delete a profile permanently."""
-    store = _store()
-    _confirm_profile_exists(store, name)
-    store.delete(name)
-    typer.echo(f"profile {name!r} deleted")
+    profile_delete_uc(_store(), name)
 
 
 # ----- profile tg-* commands -------------------------------------------------
@@ -641,10 +459,7 @@ def profile_tg_add(
     tg_id: int = typer.Argument(..., help="Telegram user ID to authorize."),
 ) -> None:
     """Add a Telegram user ID to a profile."""
-    store = _store()
-    _confirm_profile_exists(store, name)
-    store.add_tg_id(name, tg_id)
-    typer.echo(f"Telegram ID {tg_id} added to profile {name!r}")
+    profile_tg_add_uc(_store(), name, tg_id)
 
 
 @profile_app.command("tg-rm")
@@ -653,13 +468,7 @@ def profile_tg_rm(
     tg_id: int = typer.Argument(..., help="Telegram user ID to remove."),
 ) -> None:
     """Remove a Telegram user ID from a profile."""
-    store = _store()
-    _confirm_profile_exists(store, name)
-    if store.remove_tg_id(name, tg_id):
-        typer.echo(f"Telegram ID {tg_id} removed from profile {name!r}")
-    else:
-        typer.echo(f"Telegram ID {tg_id} not found in profile {name!r}", err=True)
-        raise typer.Exit(code=2)
+    profile_tg_rm_uc(_store(), name, tg_id)
 
 
 @profile_app.command("tg-list")
@@ -667,14 +476,7 @@ def profile_tg_list(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """List Telegram user IDs authorized for a profile."""
-    store = _store()
-    _confirm_profile_exists(store, name)
-    ids = store.list_tg_ids(name)
-    if not ids:
-        typer.echo(f"no Telegram IDs authorized for profile {name!r}")
-        return
-    for tid in ids:
-        typer.echo(str(tid))
+    profile_tg_list_uc(_store(), name)
 
 
 # ----- profile edit ----------------------------------------------------------
@@ -685,85 +487,7 @@ def profile_edit(
     name: str = typer.Argument(..., help="Profile name."),
 ) -> None:
     """Edit a profile interactively — add/remove patterns, parks, Telegram IDs."""
-    store = _store()
-    _confirm_profile_exists(store, name)
-
-    while True:
-        # Show current state
-        pats = store.list_patterns(name)
-        parks = store.list_parks(name)
-        tg_ids = store.list_tg_ids(name)
-        typer.echo("")
-        typer.echo(f"Editing profile {name!r}:")
-        for p in pats:
-            raw = _pattern_to_raw(p)
-            typer.echo(f"  pattern:      {raw}")
-        for pq in parks:
-            parts = pq.park_query
-            if pq.map_query:
-                parts = f"{pq.park_query} (map: {pq.map_query})"
-            typer.echo(f"  park:         {parts}")
-        for tid in tg_ids:
-            typer.echo(f"  tg_id:        {tid}")
-        typer.echo("")
-        typer.echo("What would you like to do?")
-        typer.echo("  1) Add a pattern")
-        typer.echo("  2) Remove a pattern")
-        typer.echo("  3) Add a park")
-        typer.echo("  4) Remove a park")
-        typer.echo("  5) Add a Telegram ID")
-        typer.echo("  6) Remove a Telegram ID")
-        typer.echo("  7) Done")
-
-        choice = typer.prompt("Choice", default="7")
-        if choice == "1":
-            raw = typer.prompt("Pattern (e.g. 'fri-sun' or 'fri-mon:2-3')")
-            store.add_pattern(name, raw)
-            typer.echo(f"pattern {raw!r} added")
-        elif choice == "2":
-            raw = typer.prompt("Pattern to remove")
-            if store.remove_pattern(name, raw):
-                typer.echo(f"pattern {raw!r} removed")
-            else:
-                typer.echo(f"pattern {raw!r} not found", err=True)
-        elif choice == "3":
-            park = typer.prompt("Park name or query")
-            map_q = typer.prompt("Map name (optional)", default="")
-            map_q = map_q.strip() or None
-            store.add_park(name, park, map_q)
-            typer.echo(f"park {park!r} added")
-        elif choice == "4":
-            park = typer.prompt("Park query to remove")
-            if store.remove_park(name, park):
-                typer.echo(f"park {park!r} removed")
-            else:
-                typer.echo(f"park {park!r} not found", err=True)
-        elif choice == "5":
-            tg_id = typer.prompt("Telegram ID", type=int)
-            store.add_tg_id(name, tg_id)
-            typer.echo(f"Telegram ID {tg_id} added")
-        elif choice == "6":
-            tg_id = typer.prompt("Telegram ID", type=int)
-            if store.remove_tg_id(name, tg_id):
-                typer.echo(f"Telegram ID {tg_id} removed")
-            else:
-                typer.echo(f"Telegram ID {tg_id} not found", err=True)
-        elif choice == "7":
-            typer.echo("done")
-            break
-        else:
-            typer.echo("invalid choice", err=True)
-
-
-def _pattern_to_raw(p: PatternSpec) -> str:
-    """Reverse a PatternSpec back to its pattern string."""
-    days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-    start = days[p.weekday]
-    end = days[(p.weekday + p.span_nights) % 7]
-    base = f"{start}-{end}"
-    if p.min_nights != p.max_nights or p.min_nights != p.span_nights:
-        return f"{base}:{p.min_nights}-{p.max_nights}"
-    return base
+    profile_edit_uc(_store(), name)
 
 
 # ----- profile not-interested -------------------------------------------------
@@ -783,7 +507,10 @@ def not_interested_add(
 ) -> None:
     """Mark a park+dates as not interested for a profile."""
     store = _store()
-    profile = _confirm_profile_exists(store, profile_name)
+    profile = store.get_by_name(profile_name)
+    if profile is None:
+        typer.echo(f"error: profile {profile_name!r} not found", err=True)
+        raise typer.Exit(code=2)
     start = _parse_date_or_exit(date_start)
     end = _parse_date_or_exit(date_end)
     if start > end:
@@ -815,7 +542,10 @@ def not_interested_rm(
 ) -> None:
     """Remove a not-interested entry."""
     store = _store()
-    profile = _confirm_profile_exists(store, profile_name)
+    profile = store.get_by_name(profile_name)
+    if profile is None:
+        typer.echo(f"error: profile {profile_name!r} not found", err=True)
+        raise typer.Exit(code=2)
     start = _parse_date_or_exit(date_start)
     end = _parse_date_or_exit(date_end)
     if start > end:
@@ -847,7 +577,10 @@ def not_interested_list(
 ) -> None:
     """List not-interested entries for a profile."""
     store = _store()
-    profile = _confirm_profile_exists(store, profile_name)
+    profile = store.get_by_name(profile_name)
+    if profile is None:
+        typer.echo(f"error: profile {profile_name!r} not found", err=True)
+        raise typer.Exit(code=2)
     entries = store.list_for(profile.id)
     if not entries:
         typer.echo(f"No not-interested entries for profile {profile_name!r}")
