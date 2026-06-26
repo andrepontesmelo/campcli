@@ -16,6 +16,7 @@ from ..application.migrate_profile import migrate_profile_json_to_db
 from ..application.daemon_log import WARNING
 from ..application.command_responses import handle_commands_forever
 from ..application.poller import Poller
+from ..application.search_loop import run_search_once
 from ..application.search_notifier import SearchNotifier
 from ..application.throttle import read_request_interval
 from ..presentation.format import render_match_message
@@ -76,9 +77,22 @@ def run_forever(
             daemon=True,
         )
         cmd_thread.start()
+        # Cache of per-profile notifiers — persists across poll cycles so
+        # NotificationPolicy dedup state (seen set) carries over.
+        notifiers: dict[int, SearchNotifier] = {}
         while True:
             try:
-                poller.run_search_once()
+                run_search_once(
+                    api=api,
+                    profile_repo=store,
+                    settings_repo=store,
+                    drive_times=drive_times,
+                    not_interested_repo=store,
+                    clock=clock,
+                    notifier_factory=_make_notifier,
+                    notifiers=notifiers,
+                    log=poller.log,
+                )
                 time.sleep(interval_secs)
             except KeyboardInterrupt:
                 poller.log("interrupted, exiting")
