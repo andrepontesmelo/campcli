@@ -5,14 +5,13 @@ park/map API calls across profiles, and notifies per-profile.
 """
 from __future__ import annotations
 
-import threading
-import time
 from collections.abc import Callable
 from datetime import date, timedelta
 
 from . import command_router, telegram_settings
 from .catalog import is_bookable_map, resolve_map, resolve_park
 from .daemon_log import DaemonLog, INFO, WARNING
+from .command_responses import handle_one_command_batch  # noqa: F401
 from ..domain.models import DriveTimes
 from .telegram_users import build_verbose_chat_set
 from ..domain.booking_window import max_bookable_start
@@ -59,7 +58,6 @@ class Poller:
         )
         self._log = DaemonLog(clock, telegram, verbose_chats=verbose_chats)
         self._poll_telegram: Telegram | None = None
-        self._update_offset: int | None = None
 
     def _refresh_tg_allowed_ids(self) -> None:
         """Recompute the union of ``tg_allowed_ids`` across enabled profiles."""
@@ -273,22 +271,6 @@ class Poller:
 
         self.log("poll complete")
 
-    def handle_commands_forever(
-        self, stop: threading.Event, long_poll_timeout: int = 25
-    ) -> None:
-        poll = self._poll_telegram or self._telegram
-        while not stop.is_set():
-            try:
-                updates = poll.poll_updates(
-                    offset=self._update_offset,
-                    long_poll_timeout=long_poll_timeout,
-                )
-                for upd in updates:
-                    self._process_update(upd)
-            except Exception as e:
-                self.log(f"command loop error: {e}", WARNING)
-                time.sleep(1)
-
     def _get_verbose(self, tg_id: int) -> bool:
         return telegram_settings.get_verbose(self._settings_repo, tg_id)
 
@@ -310,83 +292,4 @@ class Poller:
     def log(self, msg: str, level: int = INFO) -> None:
         self._log.log(msg, level)
 
-    def _process_update(self, upd) -> None:
-        self._update_offset = upd.update_id + 1
-        self.log(f"received update: {upd.text or '(callback)'!r}")
-        # Last-seen chat tracking (authorized users only)
-        if (
-            upd.from_id is not None
-            and upd.chat_id
-            and upd.from_id in self._tg_allowed_ids
-        ):
-            old = telegram_settings.get_chat_id(
-                self._settings_repo, upd.from_id
-            )
-            if old != upd.chat_id:
-                telegram_settings.set_chat_id(
-                    self._settings_repo, upd.from_id, upd.chat_id
-                )
-                self._refresh_verbose_chats()
-        result = command_router.dispatch(
-            upd, self, self._tg_allowed_ids
-        )
-        if result is None:
-            # Still answer the callback query if applicable
-            if upd.callback_query_id:
-                try:
-                    self._telegram.answer_callback_query(
-                        upd.callback_query_id
-                    )
-                except Exception:
-                    pass
-            return
-        # Always answer callback queries to dismiss the Telegram spinner,
-        # even for unauthorized users (dispatch may return "reply" type).
-        if upd.callback_query_id and result.get("type") != "callback":
-            try:
-                self._telegram.answer_callback_query(
-                    upd.callback_query_id
-                )
-            except Exception:
-                pass
-        t = result.get("type")
-        if t == "reply":
-            text = result["text"]
-            self._telegram.send_to(upd.chat_id, text)
-            self.log(f"replied: {text}")
-        elif t == "inline_keyboard":
-            text = result["text"]
-            buttons = result["buttons"]
-            self._telegram.send_inline_keyboard(
-                upd.chat_id, text, buttons
-            )
-            self.log(f"sent inline keyboard: {text}")
-        elif t == "callback":
-            cb_id = result.get("callback_query_id", "")
-            text = result.get("text", "")
-            # Answer callback query to dismiss spinner
-            try:
-                self._telegram.answer_callback_query(cb_id)
-            except Exception:
-                pass
-            # Edit the original message to reflect new state
-            msg_id = upd.message_id
-            if msg_id:
-                try:
-                    self._telegram.edit_message_reply_markup(
-                        upd.chat_id, msg_id, text=text
-                    )
-                except Exception:
-                    pass
-            self.log(f"callback answered: {text}")
 
-
-def handle_one_command_batch(poller: Poller) -> None:
-    """Process one batch of Telegram updates on a Poller.
-
-    Was ``Poller._handle_commands``; extracted so tests can drive the
-    command-processing step without going through ``run_search_once``.
-    """
-    updates = poller._telegram.poll_updates(offset=poller._update_offset)
-    for upd in updates:
-        poller._process_update(upd)

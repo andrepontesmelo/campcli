@@ -14,6 +14,7 @@ from ..infrastructure.store import SqliteStore
 from ..infrastructure.telegram import HttpxTelegram
 from ..application.migrate_profile import migrate_profile_json_to_db
 from ..application.daemon_log import WARNING
+from ..application.command_responses import handle_commands_forever
 from ..application.poller import Poller
 from ..application.search_notifier import SearchNotifier
 from ..application.throttle import read_request_interval
@@ -62,8 +63,16 @@ def run_forever(
         poller.start()
         stop = threading.Event()
         cmd_thread = threading.Thread(
-            target=poller.handle_commands_forever,
+            target=handle_commands_forever,
             args=(stop,),
+            kwargs=dict(
+                poller=poller,
+                telegram=telegram,
+                settings_repo=store,
+                log=poller.log,
+                refresh_verbose_chats=poller._refresh_verbose_chats,
+                poll_telegram=poll_telegram,
+            ),
             daemon=True,
         )
         cmd_thread.start()
