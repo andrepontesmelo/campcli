@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .drive_times import DriveTimes
+from ..domain.models import DriveTimes
 from ..domain.models import Map, Park, ParkQuery
 from ..domain.ports import BCParksApi
 

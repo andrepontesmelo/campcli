@@ -173,7 +173,7 @@ class TestPollerFanOut:
 
     def test_per_profile_tg_isolation(self, store, clock, fake_telegram, profile_repo):
         """Each profile's notify receives only its own tg_allowed_ids chat_ids."""
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from campcli.application.poller import Poller
 
         # Two profiles with disjoint tg_allowed_ids, same park.
@@ -251,7 +251,7 @@ class TestPollerFanOut:
 
     def test_fan_out_order(self, store, clock, fake_telegram, profile_repo):
         """All notifications for park A complete before any API call for park B."""
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from campcli.application.poller import Poller
 
         # p_a: Bowron Lake (park 1) + Golden Ears (park 2)

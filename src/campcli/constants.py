@@ -17,3 +17,7 @@ DB_PATH = CONFIG_DIR / "state.db"
 CATALOG_PATH = CONFIG_DIR / "catalog.json"
 DRIVE_TIMES_PATH = CONFIG_DIR / "drive_times.json"
 PROFILE_PATH = CONFIG_DIR / "profile.json"
+
+# Request-throttle default (seconds between API calls).
+# Overridable per-user via the ``request_interval_secs`` setting.
+DEFAULT_REQUEST_INTERVAL_SECS = 5.0

@@ -9,7 +9,7 @@ from datetime import date, timedelta
 
 from ..application.booking_links import quote_url
 from ..domain.holidays import nearest_holiday
-from ..application.drive_times import DriveTimes
+from ..domain.models import DriveTimes
 from ..domain.models import AvailableSite, Map, Park, WeekendMatch
 
 

@@ -405,7 +405,7 @@ class TestSearchProfileAware:
         """campcli search --profile weekend-only runs against that profile's parks."""
         db = tmp_path / "state.db"
         from campcli.composition import cli as cli_mod
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from unittest.mock import patch
 
         with patch.object(cli_mod, "DB_PATH", db):
@@ -426,7 +426,7 @@ class TestSearchProfileAware:
         """Exactly 1 enabled profile → auto-select, no error."""
         db = tmp_path / "state.db"
         from campcli.composition import cli as cli_mod
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from unittest.mock import patch
 
         with patch.object(cli_mod, "DB_PATH", db):
@@ -519,7 +519,7 @@ class TestSearchProfileAware:
         """campcli profile search weekend-only is the explicit form."""
         db = tmp_path / "state.db"
         from campcli.composition import cli as cli_mod
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from unittest.mock import patch
 
         with patch.object(cli_mod, "DB_PATH", db):
@@ -578,7 +578,7 @@ class TestSearchProfileAware:
         }))
 
         from campcli.composition import cli as cli_mod
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from unittest.mock import patch
 
         with patch.object(cli_mod, "DB_PATH", db):
@@ -895,7 +895,7 @@ class TestNotInterestedCli:
         from campcli.composition import cli as cli_mod
         from campcli.infrastructure.store import SqliteStore
         from campcli.application.search_notifier import SearchNotifier
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from campcli.domain.models import WeekendMatch
 
         store = SqliteStore(db)

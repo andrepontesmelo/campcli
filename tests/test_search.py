@@ -5,7 +5,7 @@ from datetime import date
 from typing import Any
 from unittest.mock import Mock
 
-from campcli.application.drive_times import DriveTimes
+from campcli.domain.models import DriveTimes
 from campcli.application.search import run as run_search
 from campcli.domain.models import Map, Park, Profile, parse_pattern
 

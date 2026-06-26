@@ -141,7 +141,7 @@ def notifier_factory():
 
 @pytest.fixture
 def poller(store, clock, fake_api, fake_telegram, notifier_factory, profile_repo):
-    from campcli.application.drive_times import DriveTimes
+    from campcli.domain.models import DriveTimes
     from campcli.application.poller import Poller
     return Poller(
         api=fake_api, telegram=fake_telegram,

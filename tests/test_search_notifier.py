@@ -1,7 +1,7 @@
 from datetime import date
 from unittest.mock import Mock
 
-from campcli.application.drive_times import DriveTimes
+from campcli.domain.models import DriveTimes
 from campcli.application.search_notifier import SearchNotifier
 from campcli.domain.models import WeekendMatch
 

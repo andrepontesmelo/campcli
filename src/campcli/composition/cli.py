@@ -21,10 +21,10 @@ from ..application.catalog import resolve_profile_parks
 from ..infrastructure.clock import SystemClock
 from ..application.migrate_profile import migrate_profile_json_to_db
 from ..application.throttle import (
-    DEFAULT_REQUEST_INTERVAL_SECS,
     SETTING_REQUEST_INTERVAL_KEY,
     read_request_interval,
 )
+from ..constants import DEFAULT_REQUEST_INTERVAL_SECS
 from ..constants import BASE_URL, CATALOG_PATH, CONFIG_DIR, DB_PATH, DRIVE_TIMES_PATH, PROFILE_PATH
 from ..domain.booking_window import max_bookable_start
 from ..infrastructure.drive_times_cache import build_cache as build_drive_cache

@@ -10,7 +10,7 @@ from typing import Any, Callable
 import httpx
 
 from ..constants import BASE_URL, CATALOG_PATH
-from ..application.throttle import DEFAULT_REQUEST_INTERVAL_SECS
+from ..constants import DEFAULT_REQUEST_INTERVAL_SECS
 from ..domain.goingtocamp_codes import CAMP_CATEGORY_IDS, NON_GROUP_EQUIPMENT
 from ..domain.models import Map, Park
 from ..domain.ports import ApiError, RateLimited

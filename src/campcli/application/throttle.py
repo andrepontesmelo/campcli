@@ -1,9 +1,9 @@
 """Request-interval throttle setting — read with sane default fallback."""
 from __future__ import annotations
 
+from ..constants import DEFAULT_REQUEST_INTERVAL_SECS
 from ..domain.ports import SettingsRepo
 
-DEFAULT_REQUEST_INTERVAL_SECS = 5.0
 SETTING_REQUEST_INTERVAL_KEY = "request_interval_secs"
 
 

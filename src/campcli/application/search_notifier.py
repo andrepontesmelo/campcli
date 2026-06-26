@@ -12,7 +12,7 @@ from .daemon_log import WARNING
 
 from ..domain.models import WeekendMatch
 from ..domain.ports import NotInterestedRepo, Telegram
-from .drive_times import DriveTimes
+from ..domain.models import DriveTimes
 from .notification_policy import NotificationPolicy
 
 

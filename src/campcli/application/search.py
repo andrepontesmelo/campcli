@@ -13,7 +13,7 @@ from . import catalog
 from .availability import check_map
 from ..domain.booking_window import max_bookable_start
 from .catalog import is_bookable_map, resolve_profile_parks
-from .drive_times import DriveTimes
+from ..domain.models import DriveTimes
 from ..domain.models import Park, PatternSpec, Profile, WeekendMatch
 from ..domain.ports import BCParksApi
 from .pricing import fee_per_night

@@ -1,5 +1,5 @@
 """Unit tests for DriveTimes value object — no fixtures needed, just a dict."""
-from campcli.application.drive_times import DriveTimes
+from campcli.domain.models import DriveTimes
 
 
 class TestHoursFor:

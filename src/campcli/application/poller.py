@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from . import command_router
 from .catalog import is_bookable_map, resolve_map, resolve_park
 from .daemon_log import DaemonLog, INFO, WARNING
-from .drive_times import DriveTimes
+from ..domain.models import DriveTimes
 from .telegram_users import build_verbose_chat_set
 from ..domain.booking_window import max_bookable_start
 from ..domain.models import Park, Profile, WeekendMatch

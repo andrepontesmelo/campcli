@@ -21,7 +21,7 @@ class _FrozenClock:
 class TestDaemonMigrationWiring:
     def test_migration_called_at_startup(self, tmp_path: Path) -> None:
         """Simulate daemon startup with profile.json present → migration occurs."""
-        from campcli.application.drive_times import DriveTimes
+        from campcli.domain.models import DriveTimes
         from campcli.application.poller import Poller
         from campcli.domain.models import Profile
         from campcli.infrastructure.store import SqliteStore
