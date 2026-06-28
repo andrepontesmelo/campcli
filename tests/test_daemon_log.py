@@ -65,3 +65,14 @@ def test_telegram_failure_is_swallowed():
 
     log = DaemonLog(FrozenClock(), Boom(), verbose_chats={"chat1"})
     log.log("still logs to stderr")  # must not raise
+
+
+def test_api_request_line_forwarded_to_verbose():
+    """DaemonLog forwards an API-request log line to verbose chats."""
+    tg = FakeTelegram()
+    log = DaemonLog(FrozenClock(), tg, verbose_chats={"chat1"})
+    log.log("API GET /api/resourceLocation?foo=bar → 200 (list[42])")
+    assert len(tg.sent) == 1
+    assert tg.sent[0][0] == "chat1"
+    assert "API GET /api/resourceLocation" in tg.sent[0][1]
+    assert "list[42]" in tg.sent[0][1]

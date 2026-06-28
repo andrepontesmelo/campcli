@@ -75,14 +75,28 @@ def run_forever(
             rest_days=profile.rest_days_between_bookings,
         )
 
+    # Mutable box for on_request — replaced with real logger after daemon_log
+    # is constructed (avoids reordering the with-block managers).
+    _api_on_request = [lambda *a: None]
+
+    def _on_request(path, params, status, summary):
+        _api_on_request[0](path, params, status, summary)
+
     with (
         HttpxTelegram(token=bot_token) as telegram,
         HttpxTelegram(token=bot_token) as poll_telegram,
-        BCParksClient(min_interval_secs=interval) as api,
+        BCParksClient(min_interval_secs=interval, on_request=_on_request) as api,
     ):
         # --- DaemonLog ---
         verbose_chats = build_verbose_chat_set(store, tg_allowed_ids)
         daemon_log = DaemonLog(clock, telegram, verbose_chats=verbose_chats)
+
+        # Replace the noop placeholder — subsequent API calls are logged.
+        def _api_req_logger(path, params, status, summary):
+            pstr = "?" + "&".join(f"{k}={v}" for k, v in sorted(params.items())) if params else ""
+            daemon_log.log(f"API GET {path}{pstr} → {status} ({summary})", INFO)
+
+        _api_on_request[0] = _api_req_logger
 
         def log(msg: str, level: int = INFO) -> None:
             daemon_log.log(msg, level)

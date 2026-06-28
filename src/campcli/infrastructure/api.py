@@ -33,6 +33,21 @@ def _is_campground(loc: dict) -> bool:
     return any(c in cats for c in CAMP_CATEGORY_IDS)
 
 
+def _summarize(body: str) -> str:
+    """Return a one-line summary of a JSON API response body."""
+    n = len(body)
+    preview = body[:200].replace("\n", " ").replace("\r", "")
+    try:
+        data = json.loads(body)
+        if isinstance(data, list):
+            preview = f"list[{len(data)}]"
+        elif isinstance(data, dict):
+            preview = f"dict({len(data)} keys)"
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return f"{n} chars, {preview}"
+
+
 class BCParksClient:
     def __init__(
         self,
@@ -40,6 +55,7 @@ class BCParksClient:
         cache_path: Path = CATALOG_PATH,
         min_interval_secs: float = DEFAULT_REQUEST_INTERVAL_SECS,
         sleep: Callable[[float], None] = sleep,
+        on_request: Callable[[str, dict[str, Any], int, str], None] | None = None,
     ) -> None:
         self._client = client or httpx.Client(
             base_url=BASE_URL,
@@ -49,6 +65,7 @@ class BCParksClient:
         self._cache_path = cache_path
         self._min_interval_secs = min_interval_secs
         self._sleep = sleep
+        self._on_request = on_request
         self._last_request_at: float | None = None
 
     def close(self) -> None:
@@ -70,11 +87,19 @@ class BCParksClient:
         try:
             r = self._client.get(path, params=params)
         except httpx.HTTPError as e:
+            if self._on_request:
+                self._on_request(path, params or {}, 0, f"network error: {e}")
             raise ApiError(f"network error calling {path}: {e}") from e
         if r.status_code in (403, 429):
+            if self._on_request:
+                self._on_request(path, params or {}, r.status_code, "rate limited")
             raise RateLimited(f"{r.status_code} from {path}")
         if r.status_code >= 400:
+            if self._on_request:
+                self._on_request(path, params or {}, r.status_code, r.text[:200])
             raise ApiError(f"{r.status_code} from {path}: {r.text[:200]}")
+        if self._on_request:
+            self._on_request(path, params or {}, r.status_code, _summarize(r.text))
         return r.json()
 
     # ---- BCParksApi Protocol methods ----------------------------------------
