@@ -131,6 +131,7 @@ class BCParksClient:
         start: date,
         end: date,
         party_size: int = 1,
+        daily: bool = False,
     ) -> dict[int, list[dict[str, Any]]]:
         params = {
             "mapId": map_id,
@@ -139,7 +140,7 @@ class BCParksClient:
             "startDate": start.isoformat(),
             "endDate": end.isoformat(),
             "isReserving": "true",
-            "getDailyAvailability": "false",
+            "getDailyAvailability": "true" if daily else "false",
             "partySize": party_size,
             "numEquipment": 1,
             "equipmentCategoryId": NON_GROUP_EQUIPMENT,

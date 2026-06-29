@@ -44,10 +44,18 @@ class BCParksApi(Protocol):
         start: date,
         end: date,
         party_size: int = 1,
+        daily: bool = False,
     ) -> dict[int, list[dict[str, Any]]]:
         """Return {site_id: [slot dicts]} for a map+date range.
 
         Caller decides the availability rule (e.g. all slots == AVAILABLE).
+
+        When ``daily`` is False the API returns a single aggregate slot per
+        site for the whole range. When ``daily`` is True it returns one slot
+        per night, **positional and date-less**: index ``i`` is the night
+        ``start + i days``. Callers slicing a window must therefore index by
+        offset from ``start``, not by any per-slot ``date`` field (there is
+        none).
         """
 
     def resource_details(self, *, park_id: int, map_id: int) -> Any:

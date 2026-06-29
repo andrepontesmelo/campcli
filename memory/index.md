@@ -18,4 +18,5 @@ knowledge (decisions, facts, constraints, gotchas). Git-tracked.
   append notable changes to [the log](log.md).
 
 ## Concepts
-<!-- Concept links will be added here as the bundle grows -->
+- [daily-availability-grid](daily-availability-grid.md) — `/api/availability/map`
+  daily slots are positional and date-less; slice by index from the fetch start.

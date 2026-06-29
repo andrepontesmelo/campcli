@@ -139,12 +139,22 @@ class TestFanOut:
         first_friday = today + __import__("datetime").timedelta(days=days_until_friday)
 
         class RichApi(FakeBCParksApi):
-            def map_availability(self, *, park_id, map_id, start, end, party_size=1):
+            def map_availability(
+                self, *, park_id, map_id, start, end, party_size=1, daily=False
+            ):
                 super().map_availability(
                     park_id=park_id, map_id=map_id, start=start, end=end,
-                    party_size=party_size,
+                    party_size=party_size, daily=daily,
                 )
-                return {101: [{"availability": 0, "date": first_friday.isoformat()}]}
+                # Positional daily grid (index i == night start + i). Reserve
+                # every night except first_friday's fri-sun (2-night) window.
+                n = (end - start).days
+                off = (first_friday - start).days
+                grid = [{"availability": 1} for _ in range(n)]
+                for i in (off, off + 1):
+                    if 0 <= i < n:
+                        grid[i] = {"availability": 0}
+                return {101: grid}
 
         api = RichApi()
 
@@ -218,12 +228,22 @@ class TestFanOut:
         first_friday = today + __import__("datetime").timedelta(days=days_until_friday)
 
         class RichApi(FakeBCParksApi):
-            def map_availability(self, *, park_id, map_id, start, end, party_size=1):
+            def map_availability(
+                self, *, park_id, map_id, start, end, party_size=1, daily=False
+            ):
                 super().map_availability(
                     park_id=park_id, map_id=map_id, start=start, end=end,
-                    party_size=party_size,
+                    party_size=party_size, daily=daily,
                 )
-                return {101: [{"availability": 0, "date": first_friday.isoformat()}]}
+                # Positional daily grid (index i == night start + i). Reserve
+                # every night except first_friday's fri-sun (2-night) window.
+                n = (end - start).days
+                off = (first_friday - start).days
+                grid = [{"availability": 1} for _ in range(n)]
+                for i in (off, off + 1):
+                    if 0 <= i < n:
+                        grid[i] = {"availability": 0}
+                return {101: grid}
 
         api = RichApi()
 

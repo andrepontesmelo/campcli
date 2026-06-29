@@ -59,21 +59,28 @@ def check_map_from_data(
     start: date,
     nights: int,
     resources: dict[int, list[dict]],
+    *,
+    fetch_start: date,
 ) -> list[AvailableSite]:
     """Check availability for a window against pre-fetched ``map_availability`` data.
 
     ``resources`` is the raw ``{site_id: [slot_dicts]}`` returned by
-    ``BCParksApi.map_availability()`` for a wider date range.  Only slots
-    whose ``date`` falls within the window are considered.
+    ``BCParksApi.map_availability(..., daily=True)`` over a wider range
+    beginning at ``fetch_start``. Daily slots are **positional and date-less**:
+    slot index ``i`` is the night ``fetch_start + i days``. The window
+    ``[start, start + nights)`` therefore maps to slot indices
+    ``[offset, offset + nights)`` where ``offset = (start - fetch_start).days``.
+    A site is available for the window only if every one of those nights is
+    present and AVAILABLE.
     """
     end = start + timedelta(days=nights)
+    offset = (start - fetch_start).days
     out: list[AvailableSite] = []
+    if offset < 0:
+        return out
     for site_id, slots in resources.items():
-        window_slots = [
-            s for s in slots
-            if (d := s.get("date")) and start <= date.fromisoformat(d) < end
-        ]
-        if not _is_available(window_slots):
+        window_slots = slots[offset : offset + nights]
+        if len(window_slots) < nights or not _is_available(window_slots):
             continue
         out.append(
             AvailableSite(
@@ -82,7 +89,7 @@ def check_map_from_data(
                 map_id=m.map_id,
                 map_name=m.name,
                 site_id=site_id,
-                site_name=_site_name(slots[0]) if slots else None,
+                site_name=_site_name(window_slots[0]),
                 start_date=start,
                 end_date=end,
             )

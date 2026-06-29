@@ -1,7 +1,7 @@
 """Test availability filtering fan-out — proves BCParksApi seam pays off."""
 from datetime import date
 
-from campcli.application.availability import check_map, check_park
+from campcli.application.availability import check_map, check_map_from_data, check_park
 from campcli.domain.models import AvailableSite, Map, Park
 from campcli.domain.goingtocamp_codes import AVAILABILITY_AVAILABLE, AVAILABILITY_RESERVED
 
@@ -65,3 +65,47 @@ class TestCheckPark:
         assert len(result) == 2
         names = {r.map_name for r in result}
         assert names == {"Loop A", "Loop B"}
+
+
+class TestCheckMapFromData:
+    """Bulk-fetch daily grid is positional and date-less: slot i == night fetch_start+i."""
+
+    park = Park(park_id=1, name="Test Park")
+    m = Map(map_id=10, park_id=1, name="Loop A")
+
+    def _grid(self, codes: list[int]) -> dict[int, list[dict]]:
+        return {101: [{"availability": c} for c in codes]}
+
+    def test_window_all_nights_free_matches(self):
+        # fetch_start day0; nights at idx 2,3 free, others reserved
+        resources = self._grid([1, 1, 0, 0, 1])
+        fetch_start = date(2026, 9, 21)
+        out = check_map_from_data(
+            self.park, self.m, date(2026, 9, 23), 2, resources, fetch_start=fetch_start
+        )
+        assert len(out) == 1
+        assert out[0].start_date == date(2026, 9, 23)
+        assert out[0].end_date == date(2026, 9, 25)
+
+    def test_window_spanning_reserved_night_rejected(self):
+        # idx1 reserved -> window [idx0, idx1) fails
+        resources = self._grid([0, 1, 0, 0])
+        out = check_map_from_data(
+            self.park, self.m, date(2026, 9, 21), 2, resources, fetch_start=date(2026, 9, 21)
+        )
+        assert out == []
+
+    def test_window_truncated_past_grid_end_rejected(self):
+        # only 2 nights of data but a 2-night window starting at the last night
+        resources = self._grid([0, 0])
+        out = check_map_from_data(
+            self.park, self.m, date(2026, 9, 22), 2, resources, fetch_start=date(2026, 9, 21)
+        )
+        assert out == []
+
+    def test_offset_before_fetch_start_rejected(self):
+        resources = self._grid([0, 0, 0])
+        out = check_map_from_data(
+            self.park, self.m, date(2026, 9, 20), 2, resources, fetch_start=date(2026, 9, 21)
+        )
+        assert out == []

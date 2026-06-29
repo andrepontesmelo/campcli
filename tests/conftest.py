@@ -21,7 +21,8 @@ class FakeBCParksApi:
         return [Map(map_id=10, park_id=park_id, name="Main")]
 
     def map_availability(
-        self, *, park_id: int, map_id: int, start: date, end: date, party_size: int = 1
+        self, *, park_id: int, map_id: int, start: date, end: date,
+        party_size: int = 1, daily: bool = False,
     ) -> dict:
         self.map_availability_calls.append((park_id, map_id, start, end))
         return {}

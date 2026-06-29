@@ -155,6 +155,7 @@ def run_search_once(
                 start=today,
                 end=range_end,
                 party_size=1,
+                daily=True,
             )
         except Exception as e:
             log(
@@ -192,7 +193,7 @@ def run_search_once(
                 if is_covered(start, nights, accepted):
                     continue
                 sites = check_map_from_data(
-                    park, map_obj, start, nights, resources
+                    park, map_obj, start, nights, resources, fetch_start=today
                 )
                 if not sites:
                     continue
